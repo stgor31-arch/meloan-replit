@@ -1,7 +1,7 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations, Loan } from "@/lib/store";
+import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Input, PhoneInput } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -9,10 +9,10 @@ import { useLocation } from "wouter";
 import { Search } from "lucide-react";
 
 export default function BorrowerLogin() {
-  const { loans, setCurrentBorrowerLoan, language } = useStore();
+  const { loans, setCurrentBorrowerLoan } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const t = translations[language];
+  const t = translations;
 
   const form = useForm({
     defaultValues: {
@@ -21,7 +21,6 @@ export default function BorrowerLogin() {
   });
 
   const onSubmit = (data: { phone: string }) => {
-    // Find loan where borrowerContact matches the input phone
     const phoneDigits = data.phone.replace(/\D/g, '');
     const loan = loans.find(l => 
         l.borrowerContact.replace(/\D/g, '').includes(phoneDigits) &&
@@ -39,7 +38,7 @@ export default function BorrowerLogin() {
       toast({
         variant: "destructive",
         title: t.no_loan_found,
-        description: "Please check the number or contact your lender."
+        description: "Проверьте номер или свяжитесь с кредитором."
       });
     }
   };
@@ -49,7 +48,7 @@ export default function BorrowerLogin() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-display font-bold">{t.enter_phone}</h2>
-          <p className="text-muted-foreground text-sm">We'll find your loan proposal by your phone number.</p>
+          <p className="text-muted-foreground text-sm">{t.borrower_login_subtitle}</p>
         </div>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">

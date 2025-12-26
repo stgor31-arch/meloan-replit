@@ -1,5 +1,4 @@
 import * as React from "react"
-
 import { cn } from "@/lib/utils"
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
@@ -25,21 +24,37 @@ export { Input }
 
 export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ className, onChange, value, ...props }, ref) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value;
-    if (!val.startsWith("+7")) {
-        val = "+7" + val.replace(/\D/g, '').substring(0, 10);
-    } else {
-        const digits = val.substring(2).replace(/\D/g, '').substring(0, 10);
-        val = "+7" + digits;
+    let input = e.target.value.replace(/\D/g, "");
+    
+    // Always ensure it starts with 7 if there are any digits
+    if (input.startsWith("8")) {
+      input = "7" + input.substring(1);
+    } else if (input.length > 0 && !input.startsWith("7")) {
+      input = "7" + input;
     }
     
+    // Limit to 11 digits (7 + 10 digits)
+    input = input.substring(0, 11);
+    
+    let formatted = "+7";
+    if (input.length > 1) {
+      const area = input.substring(1, 4);
+      const part1 = input.substring(4, 7);
+      const part2 = input.substring(7, 9);
+      const part3 = input.substring(9, 11);
+      
+      if (input.length > 1) formatted += ` (${area}`;
+      if (input.length > 4) formatted += `) ${part1}`;
+      if (input.length > 7) formatted += `-${part2}`;
+      if (input.length > 9) formatted += `-${part3}`;
+    }
+
     if (onChange) {
-      e.target.value = val;
       const event = {
         ...e,
         target: {
           ...e.target,
-          value: val
+          value: formatted
         }
       } as React.ChangeEvent<HTMLInputElement>;
       onChange(event);
@@ -52,6 +67,7 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ clas
       onChange={handleChange}
       value={value || "+7"}
       ref={ref}
+      placeholder="+7 (___) ___-__-__"
       {...props}
     />
   );

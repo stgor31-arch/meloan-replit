@@ -11,7 +11,7 @@ export interface LenderProfile {
   passport: string;
   address: string;
   paymentInfo: string;
-  phone: string; // Only phone now
+  phone: string;
 }
 
 export interface ScheduleItem {
@@ -38,19 +38,13 @@ export interface Loan {
   startDate: string;
   status: LoanStatus;
   frequency: PaymentFrequency;
-  
-  // Calculated fields
   monthlyPayment: number;
   totalRepayment: number;
   schedule: ScheduleItem[];
-  
-  // Borrower filled data
   borrowerPassport?: string;
   borrowerAddress?: string;
   signedAt?: string;
 }
-
-export type Language = "ru" | "en";
 
 interface AppState {
   lenderProfile: LenderProfile | null;
@@ -58,7 +52,6 @@ interface AppState {
   paymentRequests: PaymentRequest[];
   currentUserType: "master" | "borrower" | null;
   currentBorrowerLoan: Loan | null;
-  language: Language;
   
   setLenderProfile: (profile: LenderProfile) => void;
   createLoan: (loan: Omit<Loan, "id" | "status" | "monthlyPayment" | "totalRepayment" | "schedule">) => void;
@@ -67,7 +60,6 @@ interface AppState {
   confirmPayment: (requestId: string) => void;
   setCurrentUser: (type: "master" | "borrower" | null) => void;
   setCurrentBorrowerLoan: (loan: Loan | null) => void;
-  setLanguage: (lang: Language) => void;
 }
 
 const calculateSchedule = (amount: number, rate: number, term: number, frequency: PaymentFrequency, startDate: string): { schedule: ScheduleItem[], pmt: number } => {
@@ -83,7 +75,6 @@ const calculateSchedule = (amount: number, rate: number, term: number, frequency
       status: "upcoming"
     });
   } else {
-    // Annuity
     let periods = term;
     let ratePerPeriod = rate / 100 / 12;
     
@@ -122,7 +113,6 @@ export const useStore = create<AppState>()(
       paymentRequests: [],
       currentUserType: null,
       currentBorrowerLoan: null,
-      language: "ru",
 
       setLenderProfile: (profile) => set({ lenderProfile: profile }),
       
@@ -160,9 +150,6 @@ export const useStore = create<AppState>()(
                 const newSchedule = [...loan.schedule];
                 const nextItem = newSchedule.find(s => s.status === "upcoming");
                 if (nextItem) nextItem.status = "paid";
-                
-                // If overpayment, logic for term reduction would go here
-                // For MVP simplicity, we just mark as paid
                 return { ...loan, schedule: newSchedule };
             }
             return loan;
@@ -182,115 +169,75 @@ export const useStore = create<AppState>()(
 
       setCurrentUser: (type) => set({ currentUserType: type }),
       setCurrentBorrowerLoan: (loan) => set({ currentBorrowerLoan: loan }),
-      setLanguage: (language) => set({ language }),
     }),
     {
-      name: "meloan-storage-v4",
+      name: "meloan-storage-v5",
     }
   )
 );
 
 export const translations = {
-  ru: {
-    welcome: "Добро пожаловать",
-    lender: "Я Кредитор (Мастер)",
-    borrower: "Я Заемщик",
-    meloan: "meloan",
-    simple_lending: "Частные займы — это просто.",
-    dashboard: "Обзор",
-    loans: "Займы",
-    new_loan: "Новый заём",
-    profile: "Профиль",
-    total_active: "Активные займы",
-    recent_loans: "Последние займы",
-    amount: "Сумма",
-    term: "Срок",
-    rate: "Ставка",
-    monthly_payment: "Платеж",
-    total_repayment: "Итого к возврату",
-    create_and_invite: "Создать и отправить ссылку",
-    borrower_details: "Данные заемщика",
-    contact_name: "Имя контакта",
-    email_phone: "Телефон",
-    enter_phone: "Введите ваш номер телефона",
-    find_loan: "Найти предложение",
-    no_loan_found: "Предложение не найдено",
-    loan_found: "Найдено предложение",
-    first_payment: "Дата первого платежа",
-    save_profile: "Сохранить профиль",
-    copy_link: "Скопировать ссылку",
-    link_copied: "Ссылка скопирована",
-    loan_details: "Детали займа",
-    status: "Статус",
-    schedule: "График платежей",
-    months: "мес.",
-    yearly: "годовых",
-    accept_terms: "Я подтверждаю условия займа",
-    continue: "Продолжить",
-    sign_receipt: "Подписать расписку и принять заём",
-    passport: "Паспортные данные",
-    address: "Адрес проживания",
-    lender_data: "Данные кредитора",
-    receipt_text: "Я подтверждаю, что получил(а) денежные средства и обязуюсь вернуть их на указанных условиях",
-    frequency: "Периодичность",
-    freq_once: "В конце срока",
-    freq_monthly: "Раз в месяц",
-    freq_weekly: "Раз в неделю",
-    freq_daily: "Раз в день",
-    confirm_payment: "Подтвердить оплату",
-    payment_amount: "Сумма платежа",
-    confirm: "Подтвердить",
-    payment_requested: "Запрос на оплату отправлен",
-  },
-  en: {
-    welcome: "Welcome",
-    lender: "I am a Lender (Master)",
-    borrower: "I am a Borrower",
-    meloan: "meloan",
-    simple_lending: "Private lending made simple.",
-    dashboard: "Overview",
-    loans: "Loans",
-    new_loan: "New Loan",
-    profile: "Profile",
-    total_active: "Active Loans",
-    recent_loans: "Recent Loans",
-    amount: "Amount",
-    term: "Term",
-    rate: "Rate",
-    monthly_payment: "Payment",
-    total_repayment: "Total Repayment",
-    create_and_invite: "Create & Send Invite",
-    borrower_details: "Borrower Details",
-    contact_name: "Contact Name",
-    email_phone: "Phone",
-    enter_phone: "Enter your phone number",
-    find_loan: "Find Loan Offer",
-    no_loan_found: "No offer found",
-    loan_found: "Offer found",
-    first_payment: "First Payment Date",
-    save_profile: "Save Profile",
-    copy_link: "Copy Link",
-    link_copied: "Link Copied",
-    loan_details: "Loan Details",
-    status: "Status",
-    schedule: "Payment Schedule",
-    months: "mo.",
-    yearly: "APR",
-    accept_terms: "I confirm the loan terms",
-    continue: "Continue",
-    sign_receipt: "Sign Receipt & Accept Loan",
-    passport: "Passport Details",
-    address: "Residential Address",
-    lender_data: "Lender Details",
-    receipt_text: "I confirm that I received the funds and promise to return them on the specified terms",
-    frequency: "Frequency",
-    freq_once: "At end of term",
-    freq_monthly: "Monthly",
-    freq_weekly: "Weekly",
-    freq_daily: "Daily",
-    confirm_payment: "Confirm Payment",
-    payment_amount: "Payment Amount",
-    confirm: "Confirm",
-    payment_requested: "Payment request sent",
-  }
+  welcome: "Добро пожаловать",
+  lender: "Я Кредитор (Мастер)",
+  borrower: "Я Заемщик",
+  meloan: "Meloan",
+  simple_lending: "Частные займы — это просто.",
+  dashboard: "Обзор",
+  loans: "Займы",
+  new_loan: "Новый заём",
+  profile: "Профиль",
+  total_active: "Активные займы",
+  recent_loans: "Последние займы",
+  amount: "Сумма",
+  term: "Срок",
+  rate: "Ставка",
+  monthly_payment: "Платеж",
+  total_repayment: "Итого к возврату",
+  create_and_invite: "Создать и отправить ссылку",
+  borrower_details: "Данные заемщика",
+  contact_name: "Имя контакта",
+  email_phone: "Телефон",
+  enter_phone: "Введите ваш номер телефона",
+  find_loan: "Найти предложение",
+  no_loan_found: "Предложение не найдено",
+  loan_found: "Найдено предложение",
+  first_payment: "Дата первого платежа",
+  save_profile: "Сохранить профиль",
+  copy_link: "Скопировать ссылку",
+  link_copied: "Ссылка скопирована",
+  loan_details: "Детали займа",
+  status: "Статус",
+  schedule: "График платежей",
+  months: "мес.",
+  yearly: "годовых",
+  accept_terms: "Я подтверждаю условия займа",
+  continue: "Продолжить",
+  sign_receipt: "Подписать расписку и принять заём",
+  passport: "Паспортные данные",
+  address: "Адрес проживания",
+  lender_data: "Данные кредитора",
+  receipt_text: "Я подтверждаю, что получил(а) денежные средства и обязуюсь вернуть их на указанных условиях",
+  frequency: "Периодичность",
+  freq_once: "В конце срока",
+  freq_monthly: "Раз в месяц",
+  freq_weekly: "Раз в неделю",
+  freq_daily: "Раз в день",
+  confirm_payment: "Подтвердить оплату",
+  payment_amount: "Сумма платежа",
+  confirm: "Подтвердить",
+  payment_requested: "Запрос на оплату отправлен",
+  payment_confirmation: "Подтверждение оплаты",
+  paid: "Оплачено",
+  upcoming: "Ожидается",
+  profile_missing: "Профиль не заполнен",
+  fill_profile_first: "Сначала необходимо заполнить профиль кредитора.",
+  go_to_profile: "Перейти в профиль",
+  borrower_login_subtitle: "Мы найдем предложение по вашему номеру телефона.",
+  payment_number: "Платеж",
+  lender_details_tip: "Эти данные будут использованы для автоматического формирования расписки.",
+  fio_placeholder: "Иванов Иван Иванович",
+  passport_placeholder: "Серия, номер, кем выдан...",
+  address_placeholder: "Город, улица, дом, кв...",
+  requisites_placeholder: "Название банка, номер счета, телефон для СБП...",
+  requisites_tip: "Заемщики будут видеть это при совершении платежей.",
 };

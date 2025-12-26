@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations, Loan } from "@/lib/store";
+import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export default function BorrowerDashboard() {
-  const { currentBorrowerLoan, language, requestPayment } = useStore();
-  const t = translations[language];
+  const { currentBorrowerLoan, requestPayment } = useStore();
+  const t = translations;
   const myLoan = currentBorrowerLoan;
   const { toast } = useToast();
 
@@ -63,7 +63,7 @@ export default function BorrowerDashboard() {
                 
                 <div className="space-y-1">
                     <div className="flex justify-between text-sm text-white/80">
-                        <span>Paid {myLoan.schedule.filter(s => s.status === 'paid').length} of {myLoan.schedule.length}</span>
+                        <span>Оплачено {myLoan.schedule.filter(s => s.status === 'paid').length} из {myLoan.schedule.length}</span>
                     </div>
                     <div className="h-2 bg-black/20 rounded-full overflow-hidden">
                         <div className="h-full bg-white/90 rounded-full" style={{ width: `${(myLoan.schedule.filter(s => s.status === 'paid').length / myLoan.schedule.length) * 100}%` }} />
@@ -108,8 +108,8 @@ export default function BorrowerDashboard() {
                                 {item.status === "paid" ? <CheckCircle2 className="w-5 h-5" /> : i + 1}
                             </div>
                             <div>
-                                <p className="font-semibold">Payment #{i + 1}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="font-semibold">{t.payment_number} #{i + 1}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                             </div>
                         </div>
                         <div className="text-right">
@@ -118,7 +118,7 @@ export default function BorrowerDashboard() {
                                 "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
                                 item.status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                              )}>
-                                {item.status === "paid" ? "Paid" : "Upcoming"}
+                                {item.status === "paid" ? t.paid : t.upcoming}
                              </span>
                         </div>
                     </div>

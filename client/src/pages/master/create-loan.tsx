@@ -1,9 +1,9 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations, Loan } from "@/lib/store";
+import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
@@ -13,21 +13,21 @@ import { AlertCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function MasterCreateLoan() {
-  const { createLoan, lenderProfile, language } = useStore();
+  const { createLoan, lenderProfile } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const t = translations[language];
+  const t = translations;
 
   const [amount, setAmount] = useState(100000);
   const [months, setMonths] = useState(12);
   const [rate, setRate] = useState(20);
-  const [frequency, setFrequency] = useState<any>("monthly");
 
   const form = useForm({
     defaultValues: {
         borrowerName: "",
         borrowerContact: "+7",
-        startDate: new Date().toISOString().split('T')[0]
+        startDate: new Date().toISOString().split('T')[0],
+        frequency: "monthly"
     }
   });
 
@@ -36,13 +36,12 @@ export default function MasterCreateLoan() {
         amount,
         termMonths: months,
         ratePercent: rate,
-        frequency,
         ...data
     });
     
     toast({
-        title: "Loan Created",
-        description: "Invitation generated."
+        title: "Заём создан",
+        description: "Ссылка-приглашение готова."
     });
     setLocation("/master/dashboard");
   };
@@ -52,10 +51,10 @@ export default function MasterCreateLoan() {
         <MobileLayout title={t.new_loan} showBack>
             <div className="flex flex-col items-center justify-center h-[50vh] space-y-4 text-center p-6">
                 <AlertCircle className="h-12 w-12 text-orange-500" />
-                <h3 className="text-xl font-bold">Profile Missing</h3>
-                <p className="text-muted-foreground">You must fill out your lender profile first.</p>
+                <h3 className="text-xl font-bold">{t.profile_missing}</h3>
+                <p className="text-muted-foreground">{t.fill_profile_first}</p>
                 <Link href="/master/profile">
-                    <Button className="w-full mt-4">Go to Profile</Button>
+                    <Button className="w-full mt-4">{t.go_to_profile}</Button>
                 </Link>
             </div>
         </MobileLayout>
@@ -70,7 +69,7 @@ export default function MasterCreateLoan() {
                     <div className="flex justify-between items-baseline">
                         <Label>{t.amount}</Label>
                         <span className="text-2xl font-bold text-primary">
-                            {new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount)}
+                            {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount)}
                         </span>
                     </div>
                     <Slider value={[amount]} onValueChange={(v) => setAmount(v[0])} min={5000} max={3000000} step={5000} className="py-2" />
@@ -81,7 +80,7 @@ export default function MasterCreateLoan() {
                         <Label>{t.term}</Label>
                         <span className="text-xl font-bold">{months} {t.months}</span>
                     </div>
-                    <Slider value={[months]} onValueChange={(v) => setMonths(v[0])} min={1} max={112} step={1} className="py-2" />
+                    <Slider value={[months]} onValueChange={(v) => setMonths(v[0])} min={1} max={120} step={1} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -94,17 +93,23 @@ export default function MasterCreateLoan() {
 
                 <div className="space-y-4">
                     <Label>{t.frequency}</Label>
-                    <Select value={frequency} onValueChange={setFrequency}>
-                        <SelectTrigger className="h-12 rounded-xl">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="once">{t.freq_once}</SelectItem>
-                            <SelectItem value="monthly">{t.freq_monthly}</SelectItem>
-                            <SelectItem value="weekly">{t.freq_weekly}</SelectItem>
-                            <SelectItem value="daily">{t.freq_daily}</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <Controller
+                      name="frequency"
+                      control={form.control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger className="h-12 rounded-xl">
+                                <SelectValue placeholder="Выберите периодичность" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="once">{t.freq_once}</SelectItem>
+                                <SelectItem value="monthly">{t.freq_monthly}</SelectItem>
+                                <SelectItem value="weekly">{t.freq_weekly}</SelectItem>
+                                <SelectItem value="daily">{t.freq_daily}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                      )}
+                    />
                 </div>
             </div>
 

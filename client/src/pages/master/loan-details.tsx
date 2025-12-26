@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations, Loan } from "@/lib/store";
+import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,13 @@ import { cn } from "@/lib/utils";
 
 export default function MasterLoanDetails() {
   const [, params] = useRoute("/master/loan/:id");
-  const { loans, language, paymentRequests, confirmPayment } = useStore();
+  const { loans, paymentRequests, confirmPayment } = useStore();
   const loanId = params?.id;
   const loan = loans.find(l => l.id === loanId);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const t = translations[language];
+  const t = translations;
 
   if (!loan) return null;
 
@@ -44,12 +44,12 @@ export default function MasterLoanDetails() {
                     <div className="flex items-center gap-3">
                         <Bell className="w-5 h-5 text-primary" />
                         <div>
-                            <p className="text-xs font-bold text-primary uppercase">Payment Confirmation</p>
+                            <p className="text-xs font-bold text-primary uppercase">{t.payment_confirmation}</p>
                             <p className="text-lg font-bold">{req.amount.toLocaleString()} ₽</p>
                         </div>
                     </div>
                     <Button size="sm" onClick={() => confirmPayment(req.id)} className="rounded-xl shadow-lg">
-                        Confirm
+                        {t.confirm}
                     </Button>
                 </CardContent>
             </Card>
@@ -59,7 +59,7 @@ export default function MasterLoanDetails() {
           <div className="bg-primary p-6 text-white text-center">
              <p className="text-white/80 text-sm">{t.amount}</p>
              <h2 className="text-3xl font-bold mt-1">
-                {new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
+                {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
              </h2>
              <Badge className="mt-4 bg-white/20 border-none text-white backdrop-blur-sm">
                 {loan.status.toUpperCase()}
@@ -114,8 +114,8 @@ export default function MasterLoanDetails() {
                                 {item.status === "paid" ? "✓" : i + 1}
                             </div>
                             <div>
-                                <p className="font-semibold">Payment #{i + 1}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="font-semibold">{t.payment_number} #{i + 1}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                             </div>
                         </div>
                         <div className="text-right">
@@ -124,7 +124,7 @@ export default function MasterLoanDetails() {
                                 "text-[10px] px-2 py-0.5 rounded-full font-bold",
                                 item.status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                              )}>
-                                {item.status === "paid" ? "Paid" : "Upcoming"}
+                                {item.status === "paid" ? t.paid : t.upcoming}
                              </span>
                         </div>
                     </div>
