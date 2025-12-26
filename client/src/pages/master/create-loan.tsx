@@ -1,7 +1,7 @@
 import { MobileLayout } from "@/components/layout";
 import { useStore, translations, Loan } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -9,10 +9,11 @@ import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Copy, Check } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function MasterCreateLoan() {
-  const { createLoan, lenderProfile, language, loans } = useStore();
+  const { createLoan, lenderProfile, language } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations[language];
@@ -20,25 +21,22 @@ export default function MasterCreateLoan() {
   const [amount, setAmount] = useState(100000);
   const [months, setMonths] = useState(12);
   const [rate, setRate] = useState(20);
-  const [copied, setCopied] = useState(false);
+  const [frequency, setFrequency] = useState<any>("monthly");
 
   const form = useForm({
     defaultValues: {
         borrowerName: "",
-        borrowerContact: "",
+        borrowerContact: "+7",
         startDate: new Date().toISOString().split('T')[0]
     }
   });
-
-  const monthlyRate = rate / 12 / 100;
-  const pmt = (amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
-  const total = pmt * months;
 
   const onSubmit = (data: any) => {
     createLoan({
         amount,
         termMonths: months,
         ratePercent: rate,
+        frequency,
         ...data
     });
     
@@ -46,7 +44,6 @@ export default function MasterCreateLoan() {
         title: "Loan Created",
         description: "Invitation generated."
     });
-    // In actual app, we'd wait for the ID, but for mockup we show dashboard
     setLocation("/master/dashboard");
   };
 
@@ -68,7 +65,6 @@ export default function MasterCreateLoan() {
   return (
     <MobileLayout title={t.new_loan} showBack>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            
             <div className="space-y-6 bg-white rounded-3xl p-2">
                 <div className="space-y-4">
                     <div className="flex justify-between items-baseline">
@@ -77,14 +73,7 @@ export default function MasterCreateLoan() {
                             {new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount)}
                         </span>
                     </div>
-                    <Slider 
-                        value={[amount]} 
-                        onValueChange={(v) => setAmount(v[0])} 
-                        min={5000} 
-                        max={3000000} 
-                        step={5000} 
-                        className="py-2"
-                    />
+                    <Slider value={[amount]} onValueChange={(v) => setAmount(v[0])} min={5000} max={3000000} step={5000} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -92,14 +81,7 @@ export default function MasterCreateLoan() {
                         <Label>{t.term}</Label>
                         <span className="text-xl font-bold">{months} {t.months}</span>
                     </div>
-                    <Slider 
-                        value={[months]} 
-                        onValueChange={(v) => setMonths(v[0])} 
-                        min={1} 
-                        max={112} 
-                        step={1} 
-                        className="py-2"
-                    />
+                    <Slider value={[months]} onValueChange={(v) => setMonths(v[0])} min={1} max={112} step={1} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -107,32 +89,23 @@ export default function MasterCreateLoan() {
                         <Label>{t.rate}</Label>
                         <span className="text-xl font-bold">{rate}%</span>
                     </div>
-                    <Slider 
-                        value={[rate]} 
-                        onValueChange={(v) => setRate(v[0])} 
-                        min={0} 
-                        max={100} 
-                        step={1} 
-                        className="py-2"
-                    />
+                    <Slider value={[rate]} onValueChange={(v) => setRate(v[0])} min={0} max={100} step={1} className="py-2" />
                 </div>
 
-                <Card className="bg-muted/50 border-none shadow-none rounded-2xl">
-                    <CardContent className="p-4 grid grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">{t.monthly_payment}</p>
-                            <p className="text-lg font-bold">
-                                {Math.round(pmt).toLocaleString()} ₽
-                            </p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">{t.total_repayment}</p>
-                            <p className="text-lg font-bold">
-                                {Math.round(total).toLocaleString()} ₽
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="space-y-4">
+                    <Label>{t.frequency}</Label>
+                    <Select value={frequency} onValueChange={setFrequency}>
+                        <SelectTrigger className="h-12 rounded-xl">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="once">{t.freq_once}</SelectItem>
+                            <SelectItem value="monthly">{t.freq_monthly}</SelectItem>
+                            <SelectItem value="weekly">{t.freq_weekly}</SelectItem>
+                            <SelectItem value="daily">{t.freq_daily}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
             <div className="space-y-4">
@@ -144,7 +117,7 @@ export default function MasterCreateLoan() {
                     </div>
                     <div className="space-y-2">
                         <Label>{t.email_phone}</Label>
-                        <Input {...form.register("borrowerContact", { required: true })} className="rounded-xl h-12" />
+                        <PhoneInput {...form.register("borrowerContact", { required: true })} className="rounded-xl h-12" />
                     </div>
                     <div className="space-y-2">
                         <Label>{t.first_payment}</Label>

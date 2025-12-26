@@ -1,7 +1,7 @@
 import { MobileLayout } from "@/components/layout";
 import { useStore, translations, Loan } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -16,14 +16,15 @@ export default function BorrowerLogin() {
 
   const form = useForm({
     defaultValues: {
-      phone: ""
+      phone: "+7"
     }
   });
 
   const onSubmit = (data: { phone: string }) => {
     // Find loan where borrowerContact matches the input phone
+    const phoneDigits = data.phone.replace(/\D/g, '');
     const loan = loans.find(l => 
-        l.borrowerContact.replace(/\D/g, '').includes(data.phone.replace(/\D/g, '')) &&
+        l.borrowerContact.replace(/\D/g, '').includes(phoneDigits) &&
         (l.status === "pending" || l.status === "active")
     );
 
@@ -54,11 +55,10 @@ export default function BorrowerLogin() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
           <div className="space-y-2">
             <Label htmlFor="phone">{t.email_phone}</Label>
-            <Input 
+            <PhoneInput 
               id="phone" 
               {...form.register("phone", { required: true })} 
-              className="rounded-xl h-14 text-lg text-center" 
-              placeholder="+7 (999) 000-00-00"
+              className="rounded-xl h-14 text-2xl text-center" 
               autoFocus
             />
           </div>

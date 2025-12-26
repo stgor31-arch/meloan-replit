@@ -1,7 +1,7 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore } from "@/lib/store";
+import { useStore, translations, Loan } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
@@ -10,16 +10,18 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function MasterProfile() {
-  const { lenderProfile, setLenderProfile } = useStore();
+  const { lenderProfile, setLenderProfile, language } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const t = translations[language];
 
   const form = useForm({
     defaultValues: lenderProfile || {
         name: "",
         passport: "",
         address: "",
-        paymentInfo: ""
+        paymentInfo: "",
+        phone: "+7"
     }
   });
 
@@ -33,7 +35,7 @@ export default function MasterProfile() {
   };
 
   return (
-    <MobileLayout title="Lender Profile" showBack>
+    <MobileLayout title={t.profile} showBack>
         <div className="space-y-6">
             <Card className="bg-primary/5 border-primary/20 shadow-none rounded-2xl">
                 <CardContent className="p-4 text-sm text-primary/80">
@@ -45,6 +47,11 @@ export default function MasterProfile() {
                 <div className="space-y-2">
                     <Label htmlFor="name">Full Name (FIO)</Label>
                     <Input id="name" {...form.register("name", { required: true })} className="rounded-xl h-12" placeholder="Ivanov Ivan Ivanovich" />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="phone">{t.email_phone}</Label>
+                    <PhoneInput id="phone" {...form.register("phone", { required: true })} className="rounded-xl h-12" />
                 </div>
                 
                 <div className="space-y-2">

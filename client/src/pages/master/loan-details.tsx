@@ -4,13 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocation, useRoute } from "wouter";
-import { Calendar, ChevronLeft, Copy, Check } from "lucide-react";
+import { Calendar, ChevronLeft, Copy, Check, Bell } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function MasterLoanDetails() {
   const [, params] = useRoute("/master/loan/:id");
-  const { loans, language } = useStore();
+  const { loans, language, paymentRequests, confirmPayment } = useStore();
   const loanId = params?.id;
   const loan = loans.find(l => l.id === loanId);
   const [, setLocation] = useLocation();
@@ -20,6 +21,7 @@ export default function MasterLoanDetails() {
 
   if (!loan) return null;
 
+  const relevantRequests = paymentRequests.filter(r => r.loanId === loan.id && r.status === "pending");
   const inviteLink = `${window.location.origin}/invite/${loan.id}`;
 
   const handleCopyLink = () => {
@@ -29,19 +31,29 @@ export default function MasterLoanDetails() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const statusColors: Record<string, string> = {
-    active: "bg-green-100 text-green-700 border-green-200",
-    pending: "bg-orange-100 text-orange-700 border-orange-200",
-    closed: "bg-gray-100 text-gray-700 border-gray-200",
-    cancelled: "bg-red-100 text-red-700 border-red-200"
-  };
-
   return (
     <MobileLayout title={t.loan_details}>
       <div className="space-y-6">
         <Button variant="ghost" size="sm" onClick={() => setLocation("/master/dashboard")} className="-ml-2 mb-2">
             <ChevronLeft className="h-4 w-4 mr-1" /> {t.loans}
         </Button>
+
+        {relevantRequests.map(req => (
+            <Card key={req.id} className="border-2 border-primary bg-primary/5 animate-pulse rounded-2xl">
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Bell className="w-5 h-5 text-primary" />
+                        <div>
+                            <p className="text-xs font-bold text-primary uppercase">Payment Confirmation</p>
+                            <p className="text-lg font-bold">{req.amount.toLocaleString()} ₽</p>
+                        </div>
+                    </div>
+                    <Button size="sm" onClick={() => confirmPayment(req.id)} className="rounded-xl shadow-lg">
+                        Confirm
+                    </Button>
+                </CardContent>
+            </Card>
+        ))}
 
         <Card className="rounded-3xl border-none shadow-lg overflow-hidden">
           <div className="bg-primary p-6 text-white text-center">
@@ -79,11 +91,7 @@ export default function MasterLoanDetails() {
                 <p className="text-sm text-muted-foreground">{loan.borrowerContact}</p>
             </div>
 
-            <Button 
-                variant="secondary" 
-                className="w-full rounded-2xl gap-2 mt-2" 
-                onClick={handleCopyLink}
-            >
+            <Button variant="secondary" className="w-full rounded-2xl gap-2 mt-2" onClick={handleCopyLink}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {t.copy_link}
             </Button>
@@ -96,15 +104,28 @@ export default function MasterLoanDetails() {
                 {t.schedule}
             </h3>
             <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50">
-                        <div>
-                            <p className="font-semibold">Payment #{i}</p>
-                            <p className="text-xs text-muted-foreground">Oct 25, 2024</p>
+                {loan.schedule.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className={cn(
+                                "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
+                                item.status === "paid" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                            )}>
+                                {item.status === "paid" ? "✓" : i + 1}
+                            </div>
+                            <div>
+                                <p className="font-semibold">Payment #{i + 1}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            </div>
                         </div>
                         <div className="text-right">
-                             <p className="font-medium">{loan.monthlyPayment.toLocaleString()} ₽</p>
-                             <span className="text-[10px] text-muted-foreground">Upcoming</span>
+                             <p className="font-medium">{item.amount.toLocaleString()} ₽</p>
+                             <span className={cn(
+                                "text-[10px] px-2 py-0.5 rounded-full font-bold",
+                                item.status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                             )}>
+                                {item.status === "paid" ? "Paid" : "Upcoming"}
+                             </span>
                         </div>
                     </div>
                 ))}
