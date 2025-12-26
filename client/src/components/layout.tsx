@@ -1,13 +1,19 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, User, LogOut } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { LayoutDashboard, PlusCircle, User, LogOut, Globe } from "lucide-react";
+import { useStore, translations } from "@/lib/store";
+import { Button } from "./ui/button";
 
 export function MobileLayout({ children, title, showBack = false }: { children: React.ReactNode, title?: string, showBack?: boolean }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const isMaster = location.startsWith("/master");
-  const { setCurrentUser } = useStore();
+  const { setCurrentUser, language, setLanguage } = useStore();
+  const t = translations[language];
+
+  const toggleLanguage = () => {
+    setLanguage(language === "ru" ? "en" : "ru");
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 flex justify-center">
@@ -15,16 +21,22 @@ export function MobileLayout({ children, title, showBack = false }: { children: 
         {/* Header */}
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-             <img src="/attached_assets/LOGO_MELOAN_1766736656113.png" alt="Meloan" className="h-8 w-auto" />
-             {title && <h1 className="font-display font-semibold text-lg text-foreground">{title}</h1>}
+             <Link href={isMaster ? "/master/dashboard" : "/"}>
+                <img src="/attached_assets/LOGO_MELOAN_1766736656113.png" alt="Meloan" className="h-8 w-auto cursor-pointer" />
+             </Link>
+             {title && <h1 className="font-display font-semibold text-lg text-foreground truncate max-w-[150px]">{title}</h1>}
           </div>
-          {isMaster && (
-             <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+             <Button variant="ghost" size="icon" onClick={toggleLanguage} className="h-8 w-8 rounded-full">
+                <Globe className="h-4 w-4" />
+                <span className="text-[10px] ml-0.5 uppercase">{language}</span>
+             </Button>
+             {isMaster && (
                 <Link href="/" onClick={() => setCurrentUser(null)}>
                   <LogOut className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer" />
                 </Link>
-             </div>
-          )}
+             )}
+          </div>
         </header>
 
         {/* Content */}
@@ -36,9 +48,9 @@ export function MobileLayout({ children, title, showBack = false }: { children: 
         {isMaster && (
           <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-2 max-w-md mx-auto">
             <div className="grid grid-cols-3 gap-1">
-              <NavItem href="/master/dashboard" icon={LayoutDashboard} label="Loans" active={location === "/master/dashboard"} />
-              <NavItem href="/master/create" icon={PlusCircle} label="New Loan" active={location === "/master/create"} />
-              <NavItem href="/master/profile" icon={User} label="Profile" active={location === "/master/profile"} />
+              <NavItem href="/master/dashboard" icon={LayoutDashboard} label={t.loans} active={location === "/master/dashboard"} />
+              <NavItem href="/master/create" icon={PlusCircle} label={t.new_loan} active={location === "/master/create"} />
+              <NavItem href="/master/profile" icon={User} label={t.profile} active={location === "/master/profile"} />
             </div>
           </nav>
         )}
