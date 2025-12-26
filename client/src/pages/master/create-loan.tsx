@@ -7,7 +7,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +32,8 @@ export default function MasterCreateLoan() {
   });
 
   const onSubmit = (data: any) => {
+    // Ensure we store digits for easier searching later, but keep the display format if needed
+    // However, the store expects borrowerContact. Let's make sure it's saved.
     createLoan({
         amount,
         termMonths: months,

@@ -21,13 +21,10 @@ export default function BorrowerLogin() {
   });
 
   const onSubmit = (data: { phone: string }) => {
-    // Standardize search digits: take only the last 10 digits
     const searchDigits = data.phone.replace(/\D/g, '');
     const normalizedSearch = searchDigits.length >= 10 ? searchDigits.slice(-10) : searchDigits;
 
-    console.log("Searching for normalized phone:", normalizedSearch);
-    console.log("Available loans borrower contacts:", loans.map(l => l.borrowerContact));
-
+    // FIND LOAN: Try matching normalized digits
     const loan = loans.find(l => {
         const contactDigits = l.borrowerContact.replace(/\D/g, '');
         const normalizedContact = contactDigits.length >= 10 ? contactDigits.slice(-10) : contactDigits;

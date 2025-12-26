@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useRoute } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +17,11 @@ export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
   const { loans, updateLoanStatus, lenderProfile, setCurrentBorrowerLoan } = useStore();
   const loanId = params?.id;
+  
+  // LOGGING TO DEBUG
+  console.log("Invite page loanId from URL:", loanId);
+  console.log("All loans in store:", loans);
+
   const loan = loans.find(l => l.id === loanId);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -34,12 +39,21 @@ export default function BorrowerInvite() {
     }
   });
 
+  // Sync borrowerName if loan loads late
+  useEffect(() => {
+    if (loan) {
+      form.setValue("borrowerName", loan.borrowerName);
+    }
+  }, [loan]);
+
   if (!loan) {
     return (
       <MobileLayout title="Заём не найден">
         <div className="flex flex-col items-center justify-center h-[50vh] text-center p-6 space-y-4">
           <h3 className="text-lg font-semibold">Заём не найден</h3>
-          <p className="text-muted-foreground text-sm">Ссылка недействительна или заём был удален.</p>
+          <p className="text-muted-foreground text-sm">
+            Заём с ID "{loanId}" не найден в локальном хранилище этого браузера.
+          </p>
           <Button onClick={() => setLocation("/")}>На главную</Button>
         </div>
       </MobileLayout>
