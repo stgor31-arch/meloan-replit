@@ -2,7 +2,9 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, ...props }, ref) => {
     return (
       <input
@@ -20,3 +22,38 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
 Input.displayName = "Input"
 
 export { Input }
+
+export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ className, onChange, value, ...props }, ref) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    if (!val.startsWith("+7")) {
+        val = "+7" + val.replace(/\D/g, '').substring(0, 10);
+    } else {
+        const digits = val.substring(2).replace(/\D/g, '').substring(0, 10);
+        val = "+7" + digits;
+    }
+    
+    if (onChange) {
+      e.target.value = val;
+      const event = {
+        ...e,
+        target: {
+          ...e.target,
+          value: val
+        }
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(event);
+    }
+  };
+
+  return (
+    <Input
+      className={cn("text-center font-mono", className)}
+      onChange={handleChange}
+      value={value || "+7"}
+      ref={ref}
+      {...props}
+    />
+  );
+});
+PhoneInput.displayName = "PhoneInput";
