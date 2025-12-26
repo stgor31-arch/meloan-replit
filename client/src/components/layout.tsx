@@ -1,7 +1,8 @@
 import { useStore, translations } from "@/lib/store";
 import { Link, useLocation } from "wouter";
-import { ChevronLeft, LayoutDashboard, PlusCircle, User } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, PlusCircle, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -10,9 +11,14 @@ interface MobileLayoutProps {
 }
 
 export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
-  const { currentUserType } = useStore();
-  const [location] = useLocation();
+  const { currentUserType, setCurrentUser } = useStore();
+  const [location, setLocation] = useLocation();
   const t = translations;
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLocation("/");
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative shadow-2xl border-x border-gray-100">
@@ -29,6 +35,17 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
           )}
           <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
         </div>
+        
+        {currentUserType && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleLogout}
+            className="rounded-full text-muted-foreground hover:text-primary"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
+        )}
       </header>
 
       {/* Content */}
