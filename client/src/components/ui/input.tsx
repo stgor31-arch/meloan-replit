@@ -23,54 +23,53 @@ Input.displayName = "Input"
 export { Input }
 
 export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ className, onChange, value, ...props }, ref) => {
+  const [displayValue, setDisplayValue] = React.useState(value?.toString() || "+7");
+
+  React.useEffect(() => {
+    if (value !== undefined) {
+      setDisplayValue(value.toString());
+    }
+  }, [value]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputVal = e.target.value;
-    // Extract only digits
-    let digits = inputVal.replace(/\D/g, "");
+    let input = e.target.value;
     
-    // Handle the leading 7/8 logic
-    if (digits.length > 0) {
-      if (digits.startsWith("8")) {
-        digits = "7" + digits.substring(1);
-      } else if (!digits.startsWith("7")) {
-        digits = "7" + digits;
-      }
-    } else {
-      // If user clears everything, reset to empty or +7
-      digits = "";
+    // If user tries to delete the +7, put it back
+    if (!input.startsWith("+7")) {
+      if (input.startsWith("7")) input = "+" + input;
+      else if (input.startsWith("8")) input = "+7" + input.substring(1);
+      else input = "+7" + input.replace(/\D/g, "");
     }
 
-    // Limit to 11 digits
-    digits = digits.substring(0, 11);
-
-    // Format: +7 (XXX) XXX-XX-XX
-    let formatted = "";
+    // Extract digits only for formatting (excluding the initial +7)
+    const digits = input.substring(2).replace(/\D/g, "").substring(0, 10);
+    
+    let formatted = "+7";
     if (digits.length > 0) {
-      formatted = "+7";
-      if (digits.length > 1) {
-        formatted += " (" + digits.substring(1, 4);
+      formatted += " (" + digits.substring(0, 3);
+      if (digits.length >= 4) {
+        formatted += ") " + digits.substring(3, 6);
       }
-      if (digits.length > 4) {
-        formatted += ") " + digits.substring(4, 7);
+      if (digits.length >= 7) {
+        formatted += "-" + digits.substring(6, 8);
       }
-      if (digits.length > 7) {
-        formatted += "-" + digits.substring(7, 9);
+      if (digits.length >= 9) {
+        formatted += "-" + digits.substring(8, 10);
       }
-      if (digits.length > 9) {
-        formatted += "-" + digits.substring(9, 11);
-      }
-    } else {
-        formatted = "+7";
     }
+
+    setDisplayValue(formatted);
 
     if (onChange) {
-      // Create a shallow copy of the event and override the target value
-      const newEvent = Object.create(e);
-      Object.defineProperty(newEvent, 'target', {
-        value: { ...e.target, value: formatted },
-        writable: false
-      });
-      onChange(newEvent);
+      const syntheticEvent = {
+        ...e,
+        target: {
+          ...e.target,
+          value: formatted,
+          name: props.name
+        }
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(syntheticEvent);
     }
   };
 
@@ -78,9 +77,10 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ clas
     <Input
       className={cn("text-center font-mono h-12 text-lg", className)}
       onChange={handleChange}
-      value={value || "+7"}
+      value={displayValue}
       ref={ref}
       placeholder="+7 (___) ___-__-__"
+      type="tel"
       {...props}
     />
   );
