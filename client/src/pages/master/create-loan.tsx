@@ -7,7 +7,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -122,7 +122,18 @@ export default function MasterCreateLoan() {
                     </div>
                     <div className="space-y-2">
                         <Label>{t.email_phone}</Label>
-                        <PhoneInput {...form.register("borrowerContact", { required: true })} className="rounded-xl h-12" />
+                        <Controller
+                          name="borrowerContact"
+                          control={form.control}
+                          rules={{ required: true }}
+                          render={({ field }) => (
+                            <PhoneInput 
+                              value={field.value} 
+                              onChange={field.onChange} 
+                              className="rounded-xl h-12" 
+                            />
+                          )}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label>{t.first_payment}</Label>

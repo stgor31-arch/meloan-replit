@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,7 +51,19 @@ export default function MasterProfile() {
 
                 <div className="space-y-2">
                     <Label htmlFor="phone">{t.email_phone}</Label>
-                    <PhoneInput id="phone" {...form.register("phone", { required: true })} className="rounded-xl h-12" />
+                    <Controller
+                      name="phone"
+                      control={form.control}
+                      rules={{ required: true }}
+                      render={({ field }) => (
+                        <PhoneInput 
+                          id="phone"
+                          value={field.value} 
+                          onChange={field.onChange} 
+                          className="rounded-xl h-12" 
+                        />
+                      )}
+                    />
                 </div>
                 
                 <div className="space-y-2">

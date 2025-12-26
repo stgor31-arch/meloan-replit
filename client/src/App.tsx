@@ -24,7 +24,7 @@ function Router() {
         
         {/* Master (Lender) Routes */}
         <Route path="/master/dashboard" component={MasterDashboard} />
-        <Route path="/master/create" component={MasterCreateLoan} />
+        <Route path="/master/create-loan" component={MasterCreateLoan} />
         <Route path="/master/profile" component={MasterProfile} />
         <Route path="/master/loan/:id" component={MasterLoanDetails} />
         
