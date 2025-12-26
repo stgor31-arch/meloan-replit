@@ -23,65 +23,54 @@ Input.displayName = "Input"
 export { Input }
 
 export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ className, onChange, value, ...props }, ref) => {
-  const formatValue = (val: string) => {
-    // Keep only digits
-    let digits = val.replace(/\D/g, "");
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputVal = e.target.value;
+    // Extract only digits
+    let digits = inputVal.replace(/\D/g, "");
     
-    // If it starts with 8, change to 7
-    if (digits.startsWith("8")) {
-      digits = "7" + digits.substring(1);
-    }
-    
-    // If it doesn't start with 7 and isn't empty, add 7
-    if (digits.length > 0 && !digits.startsWith("7")) {
-      digits = "7" + digits;
+    // Handle the leading 7/8 logic
+    if (digits.length > 0) {
+      if (digits.startsWith("8")) {
+        digits = "7" + digits.substring(1);
+      } else if (!digits.startsWith("7")) {
+        digits = "7" + digits;
+      }
+    } else {
+      // If user clears everything, reset to empty or +7
+      digits = "";
     }
 
     // Limit to 11 digits
     digits = digits.substring(0, 11);
 
     // Format: +7 (XXX) XXX-XX-XX
-    let formatted = "+7";
-    if (digits.length > 1) {
-      formatted += " (" + digits.substring(1, 4);
-    }
-    if (digits.length >= 5) {
-      formatted += ") " + digits.substring(4, 7);
-    }
-    if (digits.length >= 8) {
-      formatted += "-" + digits.substring(7, 9);
-    }
-    if (digits.length >= 10) {
-      formatted += "-" + digits.substring(9, 11);
-    }
-    
-    return formatted;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatValue(e.target.value);
-    
-    if (onChange) {
-      const event = {
-        ...e,
-        target: {
-          ...e.target,
-          value: formatted
-        }
-      } as React.ChangeEvent<HTMLInputElement>;
-      onChange(event);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Allow deleting with Backspace even if formatting is present
-    if (e.key === "Backspace") {
-      const input = e.currentTarget;
-      const val = input.value;
-      // If we only have "+7", don't delete further
-      if (val === "+7") {
-        e.preventDefault();
+    let formatted = "";
+    if (digits.length > 0) {
+      formatted = "+7";
+      if (digits.length > 1) {
+        formatted += " (" + digits.substring(1, 4);
       }
+      if (digits.length > 4) {
+        formatted += ") " + digits.substring(4, 7);
+      }
+      if (digits.length > 7) {
+        formatted += "-" + digits.substring(7, 9);
+      }
+      if (digits.length > 9) {
+        formatted += "-" + digits.substring(9, 11);
+      }
+    } else {
+        formatted = "+7";
+    }
+
+    if (onChange) {
+      // Create a shallow copy of the event and override the target value
+      const newEvent = Object.create(e);
+      Object.defineProperty(newEvent, 'target', {
+        value: { ...e.target, value: formatted },
+        writable: false
+      });
+      onChange(newEvent);
     }
   };
 
@@ -89,7 +78,6 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, InputProps>(({ clas
     <Input
       className={cn("text-center font-mono h-12 text-lg", className)}
       onChange={handleChange}
-      onKeyDown={handleKeyDown}
       value={value || "+7"}
       ref={ref}
       placeholder="+7 (___) ___-__-__"
