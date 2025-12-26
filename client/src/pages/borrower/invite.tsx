@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations, Loan } from "@/lib/store";
+import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,17 +10,17 @@ import { useLocation, useRoute } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, FileText, UserCircle } from "lucide-react";
+import { FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
-  const { loans, updateLoanStatus, lenderProfile, language, setCurrentBorrowerLoan } = useStore();
+  const { loans, updateLoanStatus, lenderProfile, setCurrentBorrowerLoan } = useStore();
   const loanId = params?.id;
   const loan = loans.find(l => l.id === loanId);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const t = translations[language];
+  const t = translations;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [confirmedTerms, setConfirmedTerms] = useState(false);
@@ -34,7 +34,17 @@ export default function BorrowerInvite() {
     }
   });
 
-  if (!loan) return null;
+  if (!loan) {
+    return (
+      <MobileLayout title="Заём не найден">
+        <div className="flex flex-col items-center justify-center h-[50vh] text-center p-6 space-y-4">
+          <h3 className="text-lg font-semibold">Заём не найден</h3>
+          <p className="text-muted-foreground text-sm">Ссылка недействительна или заём был удален.</p>
+          <Button onClick={() => setLocation("/")}>На главную</Button>
+        </div>
+      </MobileLayout>
+    );
+  }
 
   const handleTermsConfirm = () => {
     if (!confirmedTerms) return;
@@ -51,17 +61,19 @@ export default function BorrowerInvite() {
         signedAt: new Date().toISOString()
     });
 
-    setCurrentBorrowerLoan({
+    const updatedLoan = {
         ...loan,
-        status: "active",
+        status: "active" as const,
         borrowerPassport: data.passport,
         borrowerAddress: data.address,
         signedAt: new Date().toISOString()
-    });
+    };
+
+    setCurrentBorrowerLoan(updatedLoan);
 
     toast({
-        title: "Loan Accepted!",
-        description: "The funds are on their way."
+        title: "Заём принят!",
+        description: "Средства скоро поступят."
     });
     
     setLocation("/borrower/dashboard");
@@ -70,7 +82,6 @@ export default function BorrowerInvite() {
   return (
     <MobileLayout>
       <div className="max-w-md mx-auto py-2">
-        {/* Progress Stepper */}
         <div className="flex items-center justify-center space-x-4 mb-8">
             <div className={cn("flex items-center gap-2", step >= 1 ? "text-primary" : "text-muted-foreground")}>
                 <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold", step >= 1 ? "bg-primary text-white border-primary" : "border-muted-foreground")}>1</div>
@@ -79,7 +90,7 @@ export default function BorrowerInvite() {
             <div className="w-8 h-px bg-border" />
             <div className={cn("flex items-center gap-2", step >= 2 ? "text-primary" : "text-muted-foreground")}>
                 <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold", step >= 2 ? "bg-primary text-white border-primary" : "border-muted-foreground")}>2</div>
-                <span className="text-xs font-medium uppercase tracking-wider">Sign</span>
+                <span className="text-xs font-medium uppercase tracking-wider">Подпись</span>
             </div>
         </div>
 
@@ -93,8 +104,8 @@ export default function BorrowerInvite() {
                     className="space-y-6"
                 >
                     <div className="text-center space-y-2">
-                        <h2 className="text-2xl font-display font-bold">Loan Offer</h2>
-                        <p className="text-muted-foreground">Proposed by {lenderProfile?.name || "The Lender"}</p>
+                        <h2 className="text-2xl font-display font-bold">Предложение займа</h2>
+                        <p className="text-muted-foreground">От {lenderProfile?.name || "Кредитора"}</p>
                     </div>
 
                     <Card className="border-2 border-primary/10 shadow-lg shadow-primary/5 rounded-3xl overflow-hidden">
@@ -103,7 +114,7 @@ export default function BorrowerInvite() {
                             <div className="text-center">
                                 <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-widest">{t.amount}</p>
                                 <p className="text-4xl font-display font-bold text-primary mt-1">
-                                    {new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
+                                    {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
                                 </p>
                             </div>
 
@@ -158,8 +169,8 @@ export default function BorrowerInvite() {
                     className="space-y-6"
                 >
                     <div className="text-center space-y-2">
-                        <h2 className="text-2xl font-display font-bold">Digital Receipt</h2>
-                        <p className="text-muted-foreground">Fill in your details to finalize the agreement.</p>
+                        <h2 className="text-2xl font-display font-bold">Электронная расписка</h2>
+                        <p className="text-muted-foreground">Заполните данные для завершения соглашения.</p>
                     </div>
 
                     <Card className="bg-amber-50/50 border border-amber-200/50 rounded-3xl overflow-hidden">
@@ -196,7 +207,7 @@ export default function BorrowerInvite() {
                                 className="mt-1 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
                             />
                             <Label htmlFor="receipt" className="text-sm font-normal leading-relaxed">
-                                <span className="font-semibold block text-foreground">Conclusive Action</span>
+                                <span className="font-semibold block text-foreground">Юридическое действие</span>
                                 {t.receipt_text}
                             </Label>
                         </div>

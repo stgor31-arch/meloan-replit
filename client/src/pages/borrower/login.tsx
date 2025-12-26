@@ -21,16 +21,16 @@ export default function BorrowerLogin() {
   });
 
   const onSubmit = (data: { phone: string }) => {
-    // Get digits only for comparison
+    // Standardize search digits: take only the last 10 digits
     const searchDigits = data.phone.replace(/\D/g, '');
-    
-    // Normalization: if it's 11 digits starting with 7 or 8, take the last 10
     const normalizedSearch = searchDigits.length >= 10 ? searchDigits.slice(-10) : searchDigits;
+
+    console.log("Searching for normalized phone:", normalizedSearch);
+    console.log("Available loans borrower contacts:", loans.map(l => l.borrowerContact));
 
     const loan = loans.find(l => {
         const contactDigits = l.borrowerContact.replace(/\D/g, '');
         const normalizedContact = contactDigits.length >= 10 ? contactDigits.slice(-10) : contactDigits;
-        
         return normalizedContact === normalizedSearch;
     });
 
@@ -45,7 +45,7 @@ export default function BorrowerLogin() {
       toast({
         variant: "destructive",
         title: t.no_loan_found,
-        description: "Заём не найден. Убедитесь, что номер совпадает с тем, который указал Кредитор."
+        description: "Заём не найден. Пожалуйста, убедитесь, что ввели тот же номер, который указал Кредитор."
       });
     }
   };
