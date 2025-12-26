@@ -3,7 +3,7 @@ import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Search } from "lucide-react";
@@ -21,11 +21,16 @@ export default function BorrowerLogin() {
   });
 
   const onSubmit = (data: { phone: string }) => {
-    const phoneDigits = data.phone.replace(/\D/g, '');
-    const loan = loans.find(l => 
-        l.borrowerContact.replace(/\D/g, '').includes(phoneDigits) &&
-        (l.status === "pending" || l.status === "active")
-    );
+    // Standardize digits for comparison
+    const searchDigits = data.phone.replace(/\D/g, '');
+    
+    const loan = loans.find(l => {
+        const contactDigits = l.borrowerContact.replace(/\D/g, '');
+        // Match if one contains the other (accounting for different formatting)
+        return contactDigits === searchDigits || 
+               (searchDigits.length >= 10 && contactDigits.includes(searchDigits.slice(-10))) ||
+               (contactDigits.length >= 10 && searchDigits.includes(contactDigits.slice(-10)));
+    });
 
     if (loan) {
       setCurrentBorrowerLoan(loan);
@@ -38,7 +43,7 @@ export default function BorrowerLogin() {
       toast({
         variant: "destructive",
         title: t.no_loan_found,
-        description: "Проверьте номер или свяжитесь с кредитором."
+        description: "Проверьте номер или свяжитесь с кредитором. Убедитесь, что номер совпадает с тем, что ввел Кредитор."
       });
     }
   };
@@ -54,11 +59,19 @@ export default function BorrowerLogin() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
           <div className="space-y-2">
             <Label htmlFor="phone">{t.email_phone}</Label>
-            <PhoneInput 
-              id="phone" 
-              {...form.register("phone", { required: true })} 
-              className="rounded-xl h-14 text-2xl text-center" 
-              autoFocus
+            <Controller
+              name="phone"
+              control={form.control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <PhoneInput 
+                  id="phone" 
+                  value={field.value}
+                  onChange={field.onChange}
+                  className="rounded-xl h-14 text-2xl text-center" 
+                  autoFocus
+                />
+              )}
             />
           </div>
 
