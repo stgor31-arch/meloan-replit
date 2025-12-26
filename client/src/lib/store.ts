@@ -14,7 +14,7 @@ export interface LenderProfile {
 export interface Loan {
   id: string;
   borrowerName: string; 
-  borrowerContact: string;
+  borrowerContact: string; // This is the phone/email used for lookup
   amount: number;
   termMonths: number;
   ratePercent: number;
@@ -37,12 +37,14 @@ interface AppState {
   lenderProfile: LenderProfile | null;
   loans: Loan[];
   currentUserType: "master" | "borrower" | null;
+  currentBorrowerLoan: Loan | null;
   language: Language;
   
   setLenderProfile: (profile: LenderProfile) => void;
   createLoan: (loan: Omit<Loan, "id" | "status" | "monthlyPayment" | "totalRepayment">) => void;
   updateLoanStatus: (id: string, status: LoanStatus, data?: Partial<Loan>) => void;
   setCurrentUser: (type: "master" | "borrower" | null) => void;
+  setCurrentBorrowerLoan: (loan: Loan | null) => void;
   setLanguage: (lang: Language) => void;
 }
 
@@ -52,9 +54,10 @@ export const useStore = create<AppState>()(
       lenderProfile: null,
       loans: [],
       currentUserType: null,
+      currentBorrowerLoan: null,
       language: "ru",
 
-      setLenderProfile: (profile) => set({ lenderProfile: profile }),
+      setLenderProfile: (profile: LenderProfile) => set({ lenderProfile: profile }),
       
       createLoan: (loanData) => set((state) => {
         const monthlyRate = loanData.ratePercent / 12 / 100;
@@ -71,15 +74,17 @@ export const useStore = create<AppState>()(
         return { loans: [newLoan, ...state.loans] };
       }),
       
-      updateLoanStatus: (id, status, data) => set((state) => ({
-        loans: state.loans.map(l => l.id === id ? { ...l, status, ...data } : l)
+      updateLoanStatus: (id: string, status: LoanStatus, data?: Partial<Loan>) => set((state) => ({
+        loans: state.loans.map((l: Loan) => l.id === id ? { ...l, status, ...data } : l),
+        currentBorrowerLoan: state.currentBorrowerLoan?.id === id ? { ...state.currentBorrowerLoan, status, ...data } : state.currentBorrowerLoan
       })),
 
-      setCurrentUser: (type) => set({ currentUserType: type }),
-      setLanguage: (language) => set({ language }),
+      setCurrentUser: (type: "master" | "borrower" | null) => set({ currentUserType: type }),
+      setCurrentBorrowerLoan: (loan: Loan | null) => set({ currentBorrowerLoan: loan }),
+      setLanguage: (language: Language) => set({ language }),
     }),
     {
-      name: "meloan-storage-v2",
+      name: "meloan-storage-v3",
     }
   )
 );
@@ -106,6 +111,10 @@ export const translations = {
     borrower_details: "Данные заемщика",
     contact_name: "Имя контакта",
     email_phone: "Email или Телефон",
+    enter_phone: "Введите ваш номер телефона",
+    find_loan: "Найти предложение",
+    no_loan_found: "Предложение не найдено",
+    loan_found: "Найдено предложение",
     first_payment: "Дата первого платежа",
     save_profile: "Сохранить профиль",
     copy_link: "Скопировать ссылку",
@@ -115,6 +124,13 @@ export const translations = {
     schedule: "График платежей",
     months: "мес.",
     yearly: "годовых",
+    accept_terms: "Я подтверждаю условия займа",
+    continue: "Продолжить",
+    sign_receipt: "Подписать расписку и принять заём",
+    passport: "Паспортные данные",
+    address: "Адрес проживания",
+    lender_data: "Данные кредитора",
+    receipt_text: "Я подтверждаю, что получил(а) денежные средства и обязуюсь вернуть их на указанных условиях",
   },
   en: {
     welcome: "Welcome",
@@ -137,6 +153,10 @@ export const translations = {
     borrower_details: "Borrower Details",
     contact_name: "Contact Name",
     email_phone: "Email or Phone",
+    enter_phone: "Enter your phone number",
+    find_loan: "Find Loan Offer",
+    no_loan_found: "No offer found",
+    loan_found: "Offer found",
     first_payment: "First Payment Date",
     save_profile: "Save Profile",
     copy_link: "Copy Link",
@@ -146,5 +166,12 @@ export const translations = {
     schedule: "Payment Schedule",
     months: "mo.",
     yearly: "APR",
+    accept_terms: "I confirm the loan terms",
+    continue: "Continue",
+    sign_receipt: "Sign Receipt & Accept Loan",
+    passport: "Passport Details",
+    address: "Residential Address",
+    lender_data: "Lender Details",
+    receipt_text: "I confirm that I received the funds and promise to return them on the specified terms",
   }
 };

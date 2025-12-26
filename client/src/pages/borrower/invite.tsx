@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, Loan } from "@/lib/store";
+import { useStore, translations, Loan } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,19 +7,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useRoute } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, ShieldCheck, UserCheck } from "lucide-react";
+import { ShieldCheck, FileText, UserCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
-  const { loans, updateLoanStatus, lenderProfile } = useStore();
+  const { loans, updateLoanStatus, lenderProfile, language, setCurrentBorrowerLoan } = useStore();
   const loanId = params?.id;
   const loan = loans.find(l => l.id === loanId);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const t = translations[language];
 
   const [step, setStep] = useState<1 | 2>(1);
   const [confirmedTerms, setConfirmedTerms] = useState(false);
@@ -33,15 +34,7 @@ export default function BorrowerInvite() {
     }
   });
 
-  if (!loan) {
-      return (
-          <MobileLayout>
-              <div className="flex items-center justify-center h-screen">
-                  <p>Loan not found or expired.</p>
-              </div>
-          </MobileLayout>
-      )
-  }
+  if (!loan) return null;
 
   const handleTermsConfirm = () => {
     if (!confirmedTerms) return;
@@ -58,6 +51,14 @@ export default function BorrowerInvite() {
         signedAt: new Date().toISOString()
     });
 
+    setCurrentBorrowerLoan({
+        ...loan,
+        status: "active",
+        borrowerPassport: data.passport,
+        borrowerAddress: data.address,
+        signedAt: new Date().toISOString()
+    });
+
     toast({
         title: "Loan Accepted!",
         description: "The funds are on their way."
@@ -68,17 +69,17 @@ export default function BorrowerInvite() {
 
   return (
     <MobileLayout>
-      <div className="max-w-md mx-auto py-6">
+      <div className="max-w-md mx-auto py-2">
         {/* Progress Stepper */}
         <div className="flex items-center justify-center space-x-4 mb-8">
             <div className={cn("flex items-center gap-2", step >= 1 ? "text-primary" : "text-muted-foreground")}>
                 <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold", step >= 1 ? "bg-primary text-white border-primary" : "border-muted-foreground")}>1</div>
-                <span className="text-sm font-medium">Terms</span>
+                <span className="text-xs font-medium uppercase tracking-wider">{t.term}</span>
             </div>
             <div className="w-8 h-px bg-border" />
             <div className={cn("flex items-center gap-2", step >= 2 ? "text-primary" : "text-muted-foreground")}>
                 <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border-2 font-bold", step >= 2 ? "bg-primary text-white border-primary" : "border-muted-foreground")}>2</div>
-                <span className="text-sm font-medium">Sign</span>
+                <span className="text-xs font-medium uppercase tracking-wider">Sign</span>
             </div>
         </div>
 
@@ -93,35 +94,35 @@ export default function BorrowerInvite() {
                 >
                     <div className="text-center space-y-2">
                         <h2 className="text-2xl font-display font-bold">Loan Offer</h2>
-                        <p className="text-muted-foreground">Review the terms proposed by {lenderProfile?.name || "The Lender"}</p>
+                        <p className="text-muted-foreground">Proposed by {lenderProfile?.name || "The Lender"}</p>
                     </div>
 
                     <Card className="border-2 border-primary/10 shadow-lg shadow-primary/5 rounded-3xl overflow-hidden">
                         <div className="h-2 bg-primary w-full" />
                         <CardContent className="p-6 space-y-6">
                             <div className="text-center">
-                                <p className="text-sm text-muted-foreground uppercase font-semibold tracking-wider">Amount</p>
+                                <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-widest">{t.amount}</p>
                                 <p className="text-4xl font-display font-bold text-primary mt-1">
-                                    {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
+                                    {new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
                                 </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-2xl">
                                 <div>
-                                    <p className="text-xs text-muted-foreground">Rate</p>
-                                    <p className="font-semibold">{loan.ratePercent}% APR</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase">{t.rate}</p>
+                                    <p className="font-semibold">{loan.ratePercent}%</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs text-muted-foreground">Term</p>
-                                    <p className="font-semibold">{loan.termMonths} Months</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase">{t.term}</p>
+                                    <p className="font-semibold">{loan.termMonths} {t.months}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground">Payment</p>
-                                    <p className="font-semibold">{loan.monthlyPayment.toLocaleString()} RUB/mo</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase">{t.monthly_payment}</p>
+                                    <p className="font-semibold">{loan.monthlyPayment.toLocaleString()} ₽</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs text-muted-foreground">Total Repay</p>
-                                    <p className="font-semibold">{loan.totalRepayment.toLocaleString()} RUB</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase">{t.total_repayment}</p>
+                                    <p className="font-semibold">{loan.totalRepayment.toLocaleString()} ₽</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -135,7 +136,7 @@ export default function BorrowerInvite() {
                             className="mt-1"
                         />
                         <Label htmlFor="terms" className="text-sm font-normal leading-relaxed">
-                            I confirm that I have reviewed the loan terms above and agree to proceed with the signing process.
+                            {t.accept_terms}
                         </Label>
                     </div>
 
@@ -144,7 +145,7 @@ export default function BorrowerInvite() {
                         disabled={!confirmedTerms}
                         className="w-full h-14 text-lg rounded-2xl"
                     >
-                        Continue
+                        {t.continue}
                     </Button>
                 </motion.div>
             )}
@@ -161,27 +162,29 @@ export default function BorrowerInvite() {
                         <p className="text-muted-foreground">Fill in your details to finalize the agreement.</p>
                     </div>
 
-                    <Card className="bg-amber-50/50 border border-amber-200/50 rounded-2xl">
-                        <CardContent className="p-4 text-xs text-amber-900/80 leading-relaxed">
-                            <p className="font-semibold mb-2 flex items-center gap-2">
-                                <ShieldCheck className="w-4 h-4" /> 
-                                Legal Binding
-                            </p>
-                            By signing this digital receipt, you acknowledge receiving the funds and commit to repaying them according to the schedule. This serves as a formal IOU between individuals.
+                    <Card className="bg-amber-50/50 border border-amber-200/50 rounded-3xl overflow-hidden">
+                        <div className="p-4 bg-amber-100/50 border-b border-amber-200/50 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-amber-700" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-700">{t.lender_data}</span>
+                        </div>
+                        <CardContent className="p-4 text-xs space-y-2">
+                            <p><strong>{t.profile}:</strong> {lenderProfile?.name}</p>
+                            <p><strong>{t.passport}:</strong> {lenderProfile?.passport}</p>
+                            <p><strong>{t.address}:</strong> {lenderProfile?.address}</p>
                         </CardContent>
                     </Card>
 
                     <form onSubmit={form.handleSubmit(handleSign)} className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Full Name</Label>
+                            <Label>{t.contact_name}</Label>
                             <Input {...form.register("borrowerName", { required: true })} className="rounded-xl h-12" />
                         </div>
                         <div className="space-y-2">
-                            <Label>Passport Series & Number</Label>
+                            <Label>{t.passport}</Label>
                             <Input {...form.register("passport", { required: true })} placeholder="1234 567890" className="rounded-xl h-12" />
                         </div>
                         <div className="space-y-2">
-                            <Label>Residential Address</Label>
+                            <Label>{t.address}</Label>
                             <Input {...form.register("address", { required: true })} className="rounded-xl h-12" />
                         </div>
 
@@ -194,7 +197,7 @@ export default function BorrowerInvite() {
                             />
                             <Label htmlFor="receipt" className="text-sm font-normal leading-relaxed">
                                 <span className="font-semibold block text-foreground">Conclusive Action</span>
-                                I confirm receiving the funds and promise to repay the loan plus interest as per the schedule.
+                                {t.receipt_text}
                             </Label>
                         </div>
 
@@ -203,7 +206,7 @@ export default function BorrowerInvite() {
                             disabled={!signedReceipt}
                             className="w-full h-14 text-lg rounded-2xl bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
                         >
-                            Sign & Accept Loan
+                            {t.sign_receipt}
                         </Button>
                     </form>
                 </motion.div>

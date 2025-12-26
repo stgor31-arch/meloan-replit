@@ -9,6 +9,7 @@ import MasterDashboard from "@/pages/master/dashboard";
 import MasterCreateLoan from "@/pages/master/create-loan";
 import MasterProfile from "@/pages/master/profile";
 import MasterLoanDetails from "@/pages/master/loan-details";
+import BorrowerLogin from "@/pages/borrower/login";
 import BorrowerInvite from "@/pages/borrower/invite";
 import BorrowerDashboard from "@/pages/borrower/dashboard";
 import { AnimatePresence } from "framer-motion";
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/master/loan/:id" component={MasterLoanDetails} />
         
         {/* Borrower Routes */}
+        <Route path="/borrower/login" component={BorrowerLogin} />
         <Route path="/invite/:id" component={BorrowerInvite} />
         <Route path="/borrower/dashboard" component={BorrowerDashboard} />
         

@@ -15,7 +15,7 @@ export default function Welcome() {
     if (role === "master") {
       setLocation("/master/dashboard");
     } else {
-      setLocation("/borrower/dashboard");
+      setLocation("/borrower/login");
     }
   };
 
@@ -50,7 +50,6 @@ export default function Welcome() {
                 alt="Meloan" 
                 className="w-full h-full object-contain" 
                 onError={(e) => {
-                    // Fallback if image fails to load
                     (e.target as any).src = "https://placehold.co/100x100?text=ML";
                 }}
               />
