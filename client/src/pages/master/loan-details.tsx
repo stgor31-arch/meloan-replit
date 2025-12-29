@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocation, useRoute } from "wouter";
-import { Calendar, ChevronLeft, Copy, Check, Bell } from "lucide-react";
+import { Calendar, ChevronLeft, Copy, Check, Bell, FileWarning, Gavel } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -31,13 +31,16 @@ export default function MasterLoanDetails() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <MobileLayout title={t.loan_details}>
-      <div className="space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/master/dashboard")} className="-ml-2 mb-2">
-            <ChevronLeft className="h-4 w-4 mr-1" /> {t.loans}
-        </Button>
+  const handleGenerateClaim = () => {
+    toast({
+        title: "Доступно в тарифе Expert",
+        description: "Улучшите тариф для формирования досудебной претензии.",
+    });
+  };
 
+  return (
+    <MobileLayout title={t.loan_details} showBack>
+      <div className="space-y-6">
         {relevantRequests.map(req => (
             <Card key={req.id} className="border-2 border-primary bg-primary/5 animate-pulse rounded-2xl">
                 <CardContent className="p-4 flex items-center justify-between">
@@ -91,10 +94,16 @@ export default function MasterLoanDetails() {
                 <p className="text-sm text-muted-foreground">{loan.borrowerContact}</p>
             </div>
 
-            <Button variant="secondary" className="w-full rounded-2xl gap-2 mt-2" onClick={handleCopyLink}>
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {t.copy_link}
-            </Button>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button variant="secondary" className="rounded-2xl gap-2" onClick={handleCopyLink}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {t.copy_link}
+                </Button>
+                <Button variant="outline" className="rounded-2xl gap-2 border-orange-200 text-orange-600 hover:bg-orange-50" onClick={handleGenerateClaim}>
+                    <Gavel className="h-4 w-4" />
+                    Претензия
+                </Button>
+            </div>
           </CardContent>
         </Card>
 

@@ -1,6 +1,6 @@
 import { useStore, translations } from "@/lib/store";
 import { Link, useLocation } from "wouter";
-import { ChevronLeft, LayoutDashboard, PlusCircle, User, LogOut } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, PlusCircle, User, LogOut, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 
@@ -20,12 +20,16 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
     setLocation("/");
   };
 
+  const handleContactDev = () => {
+    window.open("https://t.me/replit", "_blank");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative shadow-2xl border-x border-gray-100">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {showBack && (
+          {(showBack || (location !== "/" && location !== "/welcome")) && (
             <button 
               onClick={() => window.history.back()}
               className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors"
@@ -49,8 +53,21 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto p-4 pb-24">
+      <main className="flex-1 overflow-y-auto p-4 pb-32">
         {children}
+        
+        {/* Contact Developer at bottom of every page content */}
+        <div className="mt-8 mb-4 flex justify-center">
+            <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-xs text-muted-foreground hover:text-primary gap-2"
+                onClick={handleContactDev}
+            >
+                <MessageSquare className="w-4 h-4" />
+                Связаться с разработчиком
+            </Button>
+        </div>
       </main>
 
       {/* Navigation - Only for Master */}
