@@ -3,20 +3,22 @@ import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wallet, Calendar, CheckCircle2 } from "lucide-react";
+import { Wallet, Calendar, CheckCircle2, Star, PartyPopper } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 export default function BorrowerDashboard() {
-  const { currentBorrowerLoan, requestPayment } = useStore();
+  const { currentBorrowerLoan, requestPayment, rateUser } = useStore();
   const t = translations;
   const myLoan = currentBorrowerLoan;
   const { toast } = useToast();
 
   const [paymentAmount, setPaymentAmount] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
 
   if (!myLoan) {
       return (
@@ -43,9 +45,52 @@ export default function BorrowerDashboard() {
     setTimeout(() => setIsPending(false), 2000);
   };
 
+  const handleRate = (stars: number) => {
+    rateUser(myLoan.id, "lender", stars);
+    toast({ title: t.rating_saved });
+  };
+
   return (
     <MobileLayout title={t.loans}>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-10">
+        {myLoan.status === "closed" && (
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-primary/5 border-2 border-primary/20 rounded-3xl p-6 text-center space-y-4 shadow-xl shadow-primary/5"
+            >
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                    <PartyPopper className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold text-primary">{t.loan_closed}</h3>
+                <p className="text-sm text-muted-foreground">{t.congrats_borrower}</p>
+                
+                <div className="pt-4 border-t border-primary/10 mt-4">
+                    <p className="text-sm font-semibold mb-3">{t.rate_lender}</p>
+                    <div className="flex justify-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                                key={star}
+                                onMouseEnter={() => setHoverRating(star)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                onClick={() => handleRate(star)}
+                                className="focus:outline-none transition-transform active:scale-90"
+                            >
+                                <Star 
+                                    className={cn(
+                                        "w-8 h-8",
+                                        (hoverRating || myLoan.lenderRating || 0) >= star 
+                                            ? "fill-primary text-primary" 
+                                            : "text-gray-300"
+                                    )} 
+                                />
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </motion.div>
+        )}
+
         <Card className="bg-primary text-white border-none shadow-xl shadow-primary/30 rounded-3xl overflow-hidden relative">
            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
            <CardContent className="p-6">
@@ -56,8 +101,8 @@ export default function BorrowerDashboard() {
                             {(myLoan.remainingAmount || 0).toLocaleString()} ₽
                         </h2>
                     </div>
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
-                        {myLoan.status.toUpperCase()}
+                    <Badge className={cn("border-none backdrop-blur-md", myLoan.status === "closed" ? "bg-green-500/50" : "bg-white/20 hover:bg-white/30 text-white")}>
+                        {myLoan.status === "closed" ? "ЗАКРЫТ" : myLoan.status.toUpperCase()}
                     </Badge>
                 </div>
                 
@@ -72,25 +117,27 @@ export default function BorrowerDashboard() {
            </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-none shadow-md bg-white p-4 space-y-4">
-            <div className="space-y-2">
-                <p className="text-sm font-semibold">{t.payment_amount}</p>
-                <Input 
-                    type="number" 
-                    value={paymentAmount} 
-                    onChange={(e) => setPaymentAmount(e.target.value)} 
-                    placeholder="0.00 ₽"
-                    className="h-12 rounded-xl text-lg font-bold"
-                />
-            </div>
-            <Button 
-                onClick={handlePayment} 
-                disabled={!paymentAmount || isPending}
-                className="w-full h-12 rounded-xl bg-primary text-white font-bold"
-            >
-                {t.confirm_payment}
-            </Button>
-        </Card>
+        {myLoan.status !== "closed" && (
+            <Card className="rounded-2xl border-none shadow-md bg-white p-4 space-y-4">
+                <div className="space-y-2">
+                    <p className="text-sm font-semibold">{t.payment_amount}</p>
+                    <Input 
+                        type="number" 
+                        value={paymentAmount} 
+                        onChange={(e) => setPaymentAmount(e.target.value)} 
+                        placeholder="0.00 ₽"
+                        className="h-12 rounded-xl text-lg font-bold"
+                    />
+                </div>
+                <Button 
+                    onClick={handlePayment} 
+                    disabled={!paymentAmount || isPending}
+                    className="w-full h-12 rounded-xl bg-primary text-white font-bold"
+                >
+                    {t.confirm_payment}
+                </Button>
+            </Card>
+        )}
 
         <div>
             <h3 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
@@ -118,12 +165,6 @@ export default function BorrowerDashboard() {
                         </div>
                         <div className="text-right">
                              <p className="font-medium">{item.amount.toLocaleString()} ₽</p>
-                             <span className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
-                                item.status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                             )}>
-                                {item.status === "paid" ? t.paid : t.upcoming}
-                             </span>
                         </div>
                     </div>
                 ))}

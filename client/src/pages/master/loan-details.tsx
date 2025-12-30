@@ -4,19 +4,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocation, useRoute } from "wouter";
-import { Calendar, ChevronLeft, Copy, Check, Bell, FileWarning, Gavel } from "lucide-react";
+import { Calendar, ChevronLeft, Copy, Check, Bell, Gavel, Star, PartyPopper } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 export default function MasterLoanDetails() {
   const [, params] = useRoute("/master/loan/:id");
-  const { loans, paymentRequests, confirmPayment } = useStore();
+  const { loans, paymentRequests, confirmPayment, rateUser } = useStore();
   const loanId = params?.id;
   const loan = loans.find(l => l.id === loanId);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
   const t = translations;
 
   if (!loan) return null;
@@ -31,16 +33,52 @@ export default function MasterLoanDetails() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleGenerateClaim = () => {
-    toast({
-        title: "Доступно в тарифе Expert",
-        description: "Улучшите тариф для формирования досудебной претензии.",
-    });
+  const handleRate = (stars: number) => {
+    rateUser(loan.id, "borrower", stars);
+    toast({ title: t.rating_saved });
   };
 
   return (
     <MobileLayout title={t.loan_details} showBack>
       <div className="space-y-6">
+        {loan.status === "closed" && (
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-green-50 border-2 border-green-200 rounded-3xl p-6 text-center space-y-4"
+            >
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <PartyPopper className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-green-800">{t.loan_closed}</h3>
+                <p className="text-sm text-green-700/80">{t.congrats_lender}</p>
+                
+                <div className="pt-4 border-t border-green-200 mt-4">
+                    <p className="text-sm font-semibold mb-3">{t.rate_borrower}</p>
+                    <div className="flex justify-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                                key={star}
+                                onMouseEnter={() => setHoverRating(star)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                onClick={() => handleRate(star)}
+                                className="focus:outline-none transition-transform active:scale-90"
+                            >
+                                <Star 
+                                    className={cn(
+                                        "w-8 h-8",
+                                        (hoverRating || loan.borrowerRating || 0) >= star 
+                                            ? "fill-yellow-400 text-yellow-400" 
+                                            : "text-gray-300"
+                                    )} 
+                                />
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </motion.div>
+        )}
+
         {relevantRequests.map(req => (
             <Card key={req.id} className="border-2 border-primary bg-primary/5 animate-pulse rounded-2xl">
                 <CardContent className="p-4 flex items-center justify-between">
@@ -60,23 +98,23 @@ export default function MasterLoanDetails() {
 
         <Card className="rounded-3xl border-none shadow-lg overflow-hidden">
           <div className="bg-primary p-6 text-white text-center">
-             <p className="text-white/80 text-sm">{t.amount}</p>
+             <p className="text-white/80 text-sm">{t.remaining_amount}</p>
              <h2 className="text-3xl font-bold mt-1">
-                {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
+                {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.remainingAmount || 0)}
              </h2>
-             <Badge className="mt-4 bg-white/20 border-none text-white backdrop-blur-sm">
-                {loan.status.toUpperCase()}
+             <Badge className={cn("mt-4 border-none text-white backdrop-blur-sm", loan.status === "closed" ? "bg-green-500/50" : "bg-white/20")}>
+                {loan.status === "closed" ? "ЗАВЕРШЕН" : loan.status.toUpperCase()}
              </Badge>
           </div>
           <CardContent className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <p className="text-xs text-muted-foreground uppercase">{t.term}</p>
-                    <p className="font-semibold">{loan.termMonths} {t.months}</p>
+                    <p className="text-xs text-muted-foreground uppercase">{t.amount}</p>
+                    <p className="font-semibold">{loan.amount.toLocaleString()} ₽</p>
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground uppercase">{t.rate}</p>
-                    <p className="font-semibold">{loan.ratePercent}% {t.yearly}</p>
+                    <p className="font-semibold">{loan.ratePercent}%</p>
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground uppercase">{t.monthly_payment}</p>
@@ -86,10 +124,6 @@ export default function MasterLoanDetails() {
                     <p className="text-xs text-muted-foreground uppercase">{t.total_repayment}</p>
                     <p className="font-semibold">{loan.totalRepayment.toLocaleString()} ₽</p>
                 </div>
-                <div className="col-span-2 mt-2 pt-2 border-t border-white/10">
-                    <p className="text-xs text-white/80 uppercase">{t.remaining_amount}</p>
-                    <p className="text-2xl font-bold">{(loan.remainingAmount || 0).toLocaleString()} ₽</p>
-                </div>
             </div>
 
             <div className="pt-4 border-t border-dashed">
@@ -98,16 +132,18 @@ export default function MasterLoanDetails() {
                 <p className="text-sm text-muted-foreground">{loan.borrowerContact}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
-                <Button variant="secondary" className="rounded-2xl gap-2" onClick={handleCopyLink}>
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {t.copy_link}
-                </Button>
-                <Button variant="outline" className="rounded-2xl gap-2 border-orange-200 text-orange-600 hover:bg-orange-50" onClick={handleGenerateClaim}>
-                    <Gavel className="h-4 w-4" />
-                    Претензия
-                </Button>
-            </div>
+            {loan.status !== "closed" && (
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                    <Button variant="secondary" className="rounded-2xl gap-2" onClick={handleCopyLink}>
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        {t.copy_link}
+                    </Button>
+                    <Button variant="outline" className="rounded-2xl gap-2 border-orange-200 text-orange-600" onClick={() => toast({ title: "Доступно в Expert" })}>
+                        <Gavel className="h-4 w-4" />
+                        Претензия
+                    </Button>
+                </div>
+            )}
           </CardContent>
         </Card>
 
@@ -137,12 +173,6 @@ export default function MasterLoanDetails() {
                         </div>
                         <div className="text-right">
                              <p className="font-medium">{item.amount.toLocaleString()} ₽</p>
-                             <span className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full font-bold",
-                                item.status === "paid" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                             )}>
-                                {item.status === "paid" ? t.paid : t.upcoming}
-                             </span>
                         </div>
                     </div>
                 ))}

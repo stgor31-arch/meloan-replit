@@ -30,6 +30,11 @@ export interface PaymentRequest {
   timestamp: string;
 }
 
+export interface Rating {
+  stars: number;
+  timestamp: string;
+}
+
 export interface Loan {
   id: string;
   borrowerName: string; 
@@ -47,6 +52,8 @@ export interface Loan {
   borrowerPassport?: string;
   borrowerAddress?: string;
   signedAt?: string;
+  borrowerRating?: number;
+  lenderRating?: number;
 }
 
 interface AppState {
@@ -61,6 +68,7 @@ interface AppState {
   updateLoanStatus: (id: string, status: LoanStatus, data?: Partial<Loan>) => void;
   requestPayment: (loanId: string, amount: number) => void;
   confirmPayment: (requestId: string) => void;
+  rateUser: (loanId: string, type: "borrower" | "lender", stars: number) => void;
   setCurrentUser: (type: "master" | "borrower" | null) => void;
   setCurrentBorrowerLoan: (loan: Loan | null) => void;
 }
@@ -153,7 +161,6 @@ export const useStore = create<AppState>()(
         const updatedLoans = state.loans.map(loan => {
             if (loan.id === req.loanId) {
                 const newSchedule = [...loan.schedule];
-                // Find the first upcoming payment and mark it as paid with actual details
                 const nextItemIndex = newSchedule.findIndex(s => s.status === "upcoming");
                 if (nextItemIndex !== -1) {
                     newSchedule[nextItemIndex] = {
@@ -165,11 +172,13 @@ export const useStore = create<AppState>()(
                 }
                 
                 const remaining = Math.max(0, loan.remainingAmount - req.amount);
+                const status = remaining <= 0 ? "closed" : loan.status;
                 
                 return { 
                     ...loan, 
                     schedule: newSchedule,
-                    remainingAmount: remaining
+                    remainingAmount: remaining,
+                    status
                 };
             }
             return loan;
@@ -182,6 +191,11 @@ export const useStore = create<AppState>()(
         };
       }),
 
+      rateUser: (loanId, type, stars) => set((state) => ({
+        loans: state.loans.map(l => l.id === loanId ? { ...l, [type === "borrower" ? "borrowerRating" : "lenderRating"]: stars } : l),
+        currentBorrowerLoan: state.currentBorrowerLoan?.id === loanId ? { ...state.currentBorrowerLoan, [type === "borrower" ? "borrowerRating" : "lenderRating"]: stars } : state.currentBorrowerLoan
+      })),
+
       updateLoanStatus: (id, status, data) => set((state) => ({
         loans: state.loans.map(l => l.id === id ? { ...l, status, ...data } : l),
         currentBorrowerLoan: state.currentBorrowerLoan?.id === id ? { ...state.currentBorrowerLoan, status, ...data } : state.currentBorrowerLoan
@@ -191,7 +205,7 @@ export const useStore = create<AppState>()(
       setCurrentBorrowerLoan: (loan) => set({ currentBorrowerLoan: loan }),
     }),
     {
-      name: "meloan-storage-v6",
+      name: "meloan-storage-v7",
     }
   )
 );
@@ -261,4 +275,10 @@ export const translations = {
   address_placeholder: "Город, улица, дом, кв...",
   requisites_placeholder: "Название банка, номер счета, телефон для СБП...",
   requisites_tip: "Заемщики будут видеть это при совершении платежей.",
+  loan_closed: "Заём закрыт",
+  congrats_borrower: "Поздравляем! Вы полностью погасили заём.",
+  congrats_lender: "Заём успешно завершен. Все средства возвращены.",
+  rate_lender: "Оцените Кредитора",
+  rate_borrower: "Оцените Заемщика",
+  rating_saved: "Оценка сохранена",
 };
