@@ -86,6 +86,10 @@ export default function MasterLoanDetails() {
                     <p className="text-xs text-muted-foreground uppercase">{t.total_repayment}</p>
                     <p className="font-semibold">{loan.totalRepayment.toLocaleString()} ₽</p>
                 </div>
+                <div className="col-span-2 mt-2 pt-2 border-t border-white/10">
+                    <p className="text-xs text-white/80 uppercase">{t.remaining_amount}</p>
+                    <p className="text-2xl font-bold">{(loan.remainingAmount || 0).toLocaleString()} ₽</p>
+                </div>
             </div>
 
             <div className="pt-4 border-t border-dashed">
@@ -124,7 +128,11 @@ export default function MasterLoanDetails() {
                             </div>
                             <div>
                                 <p className="font-semibold">{t.payment_number} #{i + 1}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {item.status === "paid" && item.paidDate 
+                                        ? `Оплачено: ${new Date(item.paidDate).toLocaleDateString('ru-RU')}` 
+                                        : new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
                             </div>
                         </div>
                         <div className="text-right">

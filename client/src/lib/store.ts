@@ -18,6 +18,8 @@ export interface ScheduleItem {
   date: string;
   amount: number;
   status: "upcoming" | "paid" | "overdue";
+  paidDate?: string;
+  paidAmount?: number;
 }
 
 export interface PaymentRequest {
@@ -40,6 +42,7 @@ export interface Loan {
   frequency: PaymentFrequency;
   monthlyPayment: number;
   totalRepayment: number;
+  remainingAmount: number;
   schedule: ScheduleItem[];
   borrowerPassport?: string;
   borrowerAddress?: string;
@@ -54,7 +57,7 @@ interface AppState {
   currentBorrowerLoan: Loan | null;
   
   setLenderProfile: (profile: LenderProfile) => void;
-  createLoan: (loan: Omit<Loan, "id" | "status" | "monthlyPayment" | "totalRepayment" | "schedule">) => void;
+  createLoan: (loan: Omit<Loan, "id" | "status" | "monthlyPayment" | "totalRepayment" | "remainingAmount" | "schedule">) => void;
   updateLoanStatus: (id: string, status: LoanStatus, data?: Partial<Loan>) => void;
   requestPayment: (loanId: string, amount: number) => void;
   confirmPayment: (requestId: string) => void;
@@ -118,13 +121,15 @@ export const useStore = create<AppState>()(
       
       createLoan: (loanData) => set((state) => {
         const { schedule, pmt } = calculateSchedule(loanData.amount, loanData.ratePercent, loanData.termMonths, loanData.frequency, loanData.startDate);
+        const total = pmt * (loanData.frequency === "once" ? 1 : (loanData.frequency === "weekly" ? loanData.termMonths * 4 : (loanData.frequency === "daily" ? loanData.termMonths * 30 : loanData.termMonths)));
         
         const newLoan: Loan = {
           ...loanData,
           id: `loan-${Date.now()}`,
           status: "pending",
           monthlyPayment: pmt,
-          totalRepayment: pmt * (loanData.frequency === "once" ? 1 : (loanData.frequency === "weekly" ? loanData.termMonths * 4 : (loanData.frequency === "daily" ? loanData.termMonths * 30 : loanData.termMonths))),
+          totalRepayment: total,
+          remainingAmount: total,
           schedule,
         };
         
@@ -148,9 +153,24 @@ export const useStore = create<AppState>()(
         const updatedLoans = state.loans.map(loan => {
             if (loan.id === req.loanId) {
                 const newSchedule = [...loan.schedule];
-                const nextItem = newSchedule.find(s => s.status === "upcoming");
-                if (nextItem) nextItem.status = "paid";
-                return { ...loan, schedule: newSchedule };
+                // Find the first upcoming payment and mark it as paid with actual details
+                const nextItemIndex = newSchedule.findIndex(s => s.status === "upcoming");
+                if (nextItemIndex !== -1) {
+                    newSchedule[nextItemIndex] = {
+                        ...newSchedule[nextItemIndex],
+                        status: "paid",
+                        paidDate: new Date().toISOString(),
+                        paidAmount: req.amount
+                    };
+                }
+                
+                const remaining = Math.max(0, loan.remainingAmount - req.amount);
+                
+                return { 
+                    ...loan, 
+                    schedule: newSchedule,
+                    remainingAmount: remaining
+                };
             }
             return loan;
         });
@@ -171,7 +191,7 @@ export const useStore = create<AppState>()(
       setCurrentBorrowerLoan: (loan) => set({ currentBorrowerLoan: loan }),
     }),
     {
-      name: "meloan-storage-v5",
+      name: "meloan-storage-v6",
     }
   )
 );
@@ -193,6 +213,7 @@ export const translations = {
   rate: "Ставка",
   monthly_payment: "Платеж",
   total_repayment: "Итого к возврату",
+  remaining_amount: "Остаток долга",
   create_and_invite: "Создать и отправить ссылку",
   borrower_details: "Данные заемщика",
   contact_name: "Имя контакта",

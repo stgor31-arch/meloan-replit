@@ -51,9 +51,9 @@ export default function BorrowerDashboard() {
            <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-6">
                     <div>
-                        <p className="text-white/80 text-sm font-medium">{t.monthly_payment}</p>
+                        <p className="text-white/80 text-sm font-medium">{t.remaining_amount}</p>
                         <h2 className="text-4xl font-display font-bold mt-1">
-                            {myLoan.monthlyPayment.toLocaleString()} ₽
+                            {(myLoan.remainingAmount || 0).toLocaleString()} ₽
                         </h2>
                     </div>
                     <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
@@ -109,7 +109,11 @@ export default function BorrowerDashboard() {
                             </div>
                             <div>
                                 <p className="font-semibold">{t.payment_number} #{i + 1}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {item.status === "paid" && item.paidDate 
+                                        ? `Оплачено: ${new Date(item.paidDate).toLocaleDateString('ru-RU')}` 
+                                        : new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
                             </div>
                         </div>
                         <div className="text-right">
