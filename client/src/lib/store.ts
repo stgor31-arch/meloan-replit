@@ -30,11 +30,6 @@ export interface PaymentRequest {
   timestamp: string;
 }
 
-export interface Rating {
-  stars: number;
-  timestamp: string;
-}
-
 export interface Loan {
   id: string;
   borrowerName: string; 
@@ -160,24 +155,47 @@ export const useStore = create<AppState>()(
 
         const updatedLoans = state.loans.map(loan => {
             if (loan.id === req.loanId) {
-                const newSchedule = [...loan.schedule];
+                const currentRemaining = loan.remainingAmount;
+                const paidAmount = req.amount;
+                const newRemaining = Math.max(0, currentRemaining - paidAmount);
+                
+                let newSchedule = [...loan.schedule];
                 const nextItemIndex = newSchedule.findIndex(s => s.status === "upcoming");
+                
+                // Mark current as paid with actual amount
                 if (nextItemIndex !== -1) {
                     newSchedule[nextItemIndex] = {
                         ...newSchedule[nextItemIndex],
                         status: "paid",
                         paidDate: new Date().toISOString(),
-                        paidAmount: req.amount
+                        paidAmount: paidAmount,
+                        amount: paidAmount // Update displayed amount to actual paid
                     };
+                    
+                    // Recalculate remaining schedule if there's debt left and frequency isn't "once"
+                    if (newRemaining > 0 && loan.frequency !== "once") {
+                        const remainingItemsCount = newSchedule.filter(s => s.status === "upcoming").length;
+                        if (remainingItemsCount > 0) {
+                            // Simple annuity recalculation for the remaining periods
+                            let ratePerPeriod = (loan.ratePercent / 100) / 12;
+                            if (loan.frequency === "weekly") ratePerPeriod = (loan.ratePercent / 100) / 52;
+                            else if (loan.frequency === "daily") ratePerPeriod = (loan.ratePercent / 100) / 365;
+                            
+                            const newPmt = Math.round((newRemaining * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -remainingItemsCount)));
+                            
+                            newSchedule = newSchedule.map(item => 
+                                item.status === "upcoming" ? { ...item, amount: newPmt } : item
+                            );
+                        }
+                    }
                 }
                 
-                const remaining = Math.max(0, loan.remainingAmount - req.amount);
-                const status = remaining <= 0 ? "closed" : loan.status;
+                const status = newRemaining <= 0 ? "closed" : loan.status;
                 
                 return { 
                     ...loan, 
                     schedule: newSchedule,
-                    remainingAmount: remaining,
+                    remainingAmount: newRemaining,
                     status
                 };
             }
@@ -212,8 +230,8 @@ export const useStore = create<AppState>()(
 
 export const translations = {
   welcome: "Добро пожаловать",
-  lender: "Я Кредитор (Мастер)",
-  borrower: "Я Заемщик",
+  lender: "Кредитор",
+  borrower: "Заемщик",
   meloan: "Meloan",
   simple_lending: "Частные займы — это просто.",
   dashboard: "Обзор",

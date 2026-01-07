@@ -3,8 +3,7 @@ import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useRef } from "react";
 import { cn } from "@/lib/utils";
 
 // Mock stories for the carousel
@@ -86,29 +85,35 @@ export default function Welcome() {
 
             <Button 
                 onClick={handleLender}
-                className="w-full h-20 rounded-3xl text-xl font-semibold flex items-center justify-between px-6 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
+                className="w-full h-24 rounded-3xl flex items-center justify-between px-6 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform group"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
                         <ShieldCheck className="w-6 h-6" />
                     </div>
-                    <span className="text-left leading-tight">{t.lender}</span>
+                    <div className="text-left">
+                        <span className="block text-xl font-semibold leading-tight">{t.lender}</span>
+                        <span className="block text-[11px] text-white/70 mt-1">Создайте и управляйте займами</span>
+                    </div>
                 </div>
-                <ChevronRight className="w-6 h-6 opacity-50" />
+                <ChevronRight className="w-6 h-6 opacity-50 group-hover:translate-x-1 transition-transform" />
             </Button>
 
             <Button 
                 variant="outline"
                 onClick={handleBorrower}
-                className="w-full h-20 rounded-3xl text-xl font-semibold flex items-center justify-between px-6 border-2 hover:bg-gray-50 hover:scale-[1.02] transition-transform"
+                className="w-full h-24 rounded-3xl flex items-center justify-between px-6 border-2 hover:bg-gray-50 hover:scale-[1.02] transition-transform group"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
                         <UserCircle2 className="w-6 h-6 text-primary" />
                     </div>
-                    <span className="text-left leading-tight text-gray-900">{t.borrower}</span>
+                    <div className="text-left">
+                        <span className="block text-xl font-semibold leading-tight text-gray-900">{t.borrower}</span>
+                        <span className="block text-[11px] text-muted-foreground mt-1">Подтвердите и отслеживайте свой заем</span>
+                    </div>
                 </div>
-                <ChevronRight className="w-6 h-6 opacity-20" />
+                <ChevronRight className="w-6 h-6 opacity-20 group-hover:translate-x-1 transition-transform" />
             </Button>
         </div>
 
