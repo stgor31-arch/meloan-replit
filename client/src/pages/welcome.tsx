@@ -85,31 +85,24 @@ export default function Welcome() {
   return (
     <MobileLayout title="">
       <div className="flex flex-col space-y-8 pb-10">
-        {/* Top Bar with Logo, Title and Logout */}
-        <div className="flex items-center justify-between px-2 pt-2">
+        {/* Hero Section - Fixed at top, no scroll */}
+        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-6 space-y-3">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <ShieldCheck className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner">
+                    <ShieldCheck className="w-7 h-7 text-primary" />
                 </div>
                 <div>
-                    <h1 className="text-xl font-display font-bold text-gray-900 leading-none">Meloan</h1>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Simple Lending</p>
+                    <h1 className="text-2xl font-display font-bold text-gray-900 leading-none tracking-tight">Meloan</h1>
+                    <p className="text-[10px] text-primary uppercase tracking-[0.2em] font-black mt-1">Simple Lending</p>
                 </div>
             </div>
-            {currentUserType && (
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setCurrentUser(null)}
-                    className="rounded-full text-muted-foreground"
-                >
-                    <LogOut className="w-5 h-5" />
-                </Button>
-            )}
+            <p className="text-sm font-medium text-gray-600 leading-relaxed max-w-[280px]">
+                Контролируйте частные займы, платежи и расписки в одном приложении
+            </p>
         </div>
 
-        {/* Stories Carousel */}
-        <div className="relative">
+        {/* Stories Carousel - Now below the fixed header */}
+        <div className="relative pt-2">
             <div 
                 ref={scrollRef}
                 className="flex gap-4 overflow-x-auto px-4 pb-4 no-scrollbar snap-x"
