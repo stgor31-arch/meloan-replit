@@ -27,28 +27,48 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative shadow-2xl border-x border-gray-100">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {(showBack || (location !== "/" && location !== "/welcome")) && (
-            <button 
-              onClick={() => window.history.back()}
-              className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors"
+      <header className="sticky top-0 z-50 bg-white border-b border-border px-4 py-4 h-auto flex flex-col items-start gap-4">
+        <div className="w-full flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {(showBack || (location !== "/" && location !== "/welcome" && location !== "/")) && (
+              <button 
+                onClick={() => window.history.back()}
+                className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+            {location === "/" ? (
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shadow-inner">
+                      <ShieldCheck className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                      <h1 className="text-xl font-display font-bold text-gray-900 leading-none tracking-tight">Meloan</h1>
+                      <p className="text-[9px] text-primary uppercase tracking-[0.2em] font-black mt-1">Simple Lending</p>
+                  </div>
+              </div>
+            ) : (
+              <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
+            )}
+          </div>
+          
+          {currentUserType && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout}
+              className="rounded-full text-muted-foreground hover:text-primary"
             >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
+              <LogOut className="w-5 h-5" />
+            </Button>
           )}
-          <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
         </div>
-        
-        {currentUserType && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleLogout}
-            className="rounded-full text-muted-foreground hover:text-primary"
-          >
-            <LogOut className="w-5 h-5" />
-          </Button>
+
+        {location === "/" && (
+          <p className="text-sm font-medium text-gray-600 leading-relaxed max-w-[300px] px-1">
+            Контролируйте частные займы, платежи и расписки в одном приложении
+          </p>
         )}
       </header>
 
