@@ -1,6 +1,6 @@
 import { useStore, translations } from "@/lib/store";
 import { Link, useLocation } from "wouter";
-import { ChevronLeft, LayoutDashboard, PlusCircle, User, LogOut, MessageSquare } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, PlusCircle, User, LogOut, MessageSquare, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 
