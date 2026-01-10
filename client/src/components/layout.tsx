@@ -40,13 +40,11 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
             )}
             {location === "/" ? (
               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shadow-inner">
-                      <ShieldCheck className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                      <h1 className="text-xl font-display font-bold text-gray-900 leading-none tracking-tight">Meloan</h1>
-                      <p className="text-[9px] text-primary uppercase tracking-[0.2em] font-black mt-1">Simple Lending</p>
-                  </div>
+                  <img 
+                      src="/attached_assets/Logo_Meloan_(2)_1768044113304.png" 
+                      alt="Meloan" 
+                      className="h-10 w-auto object-contain"
+                  />
               </div>
             ) : (
               <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
