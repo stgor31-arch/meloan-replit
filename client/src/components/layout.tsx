@@ -41,7 +41,7 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
             {location === "/" ? (
               <div className="flex items-center gap-3">
                   <img 
-                      src="/attached_assets/Logo_Meloan_(2)_1768044113304.png" 
+                      src="/logo.png" 
                       alt="Meloan" 
                       className="h-10 w-auto object-contain"
                   />
