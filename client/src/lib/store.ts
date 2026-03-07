@@ -1,229 +1,29 @@
-// Mock Data Store for Meloan MVP
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { addDays, addWeeks, addMonths, format, parseISO } from "date-fns";
-
-export type LoanStatus = "draft" | "pending" | "active" | "closed" | "cancelled";
-export type PaymentFrequency = "once" | "monthly" | "weekly" | "daily";
-
-export interface LenderProfile {
-  name: string;
-  passport: string;
-  address: string;
-  paymentInfo: string;
-  phone: string;
-}
-
-export interface ScheduleItem {
-  date: string;
-  amount: number;
-  status: "upcoming" | "paid" | "overdue";
-  paidDate?: string;
-  paidAmount?: number;
-}
-
-export interface PaymentRequest {
-  id: string;
-  loanId: string;
-  amount: number;
-  status: "pending" | "confirmed" | "rejected";
-  timestamp: string;
-}
-
-export interface Loan {
-  id: string;
-  borrowerName: string; 
-  borrowerContact: string; 
-  amount: number;
-  termMonths: number;
-  ratePercent: number;
-  startDate: string;
-  status: LoanStatus;
-  frequency: PaymentFrequency;
-  monthlyPayment: number;
-  totalRepayment: number;
-  remainingAmount: number;
-  schedule: ScheduleItem[];
-  borrowerPassport?: string;
-  borrowerAddress?: string;
-  signedAt?: string;
-  borrowerRating?: number;
-  lenderRating?: number;
-}
 
 interface AppState {
-  lenderProfile: LenderProfile | null;
-  loans: Loan[];
-  paymentRequests: PaymentRequest[];
+  lenderProfileId: string | null;
   currentUserType: "master" | "borrower" | null;
-  currentBorrowerLoan: Loan | null;
-  
-  setLenderProfile: (profile: LenderProfile) => void;
-  createLoan: (loan: Omit<Loan, "id" | "status" | "monthlyPayment" | "totalRepayment" | "remainingAmount" | "schedule">) => void;
-  updateLoanStatus: (id: string, status: LoanStatus, data?: Partial<Loan>) => void;
-  requestPayment: (loanId: string, amount: number) => void;
-  confirmPayment: (requestId: string) => void;
-  rateUser: (loanId: string, type: "borrower" | "lender", stars: number) => void;
-  setCurrentUser: (type: "master" | "borrower" | null) => void;
-  setCurrentBorrowerLoan: (loan: Loan | null) => void;
-}
+  currentBorrowerLoanId: string | null;
 
-const calculateSchedule = (amount: number, rate: number, term: number, frequency: PaymentFrequency, startDate: string): { schedule: ScheduleItem[], pmt: number } => {
-  const start = parseISO(startDate);
-  const schedule: ScheduleItem[] = [];
-  let pmt = 0;
-  
-  if (frequency === "once") {
-    pmt = amount * (1 + (rate / 100) * (term / 12));
-    schedule.push({
-      date: format(addMonths(start, term), "yyyy-MM-dd"),
-      amount: Math.round(pmt),
-      status: "upcoming"
-    });
-  } else {
-    let periods = term;
-    let ratePerPeriod = rate / 100 / 12;
-    
-    if (frequency === "weekly") {
-        periods = term * 4;
-        ratePerPeriod = rate / 100 / 52;
-    } else if (frequency === "daily") {
-        periods = term * 30;
-        ratePerPeriod = rate / 100 / 365;
-    }
-    
-    pmt = (amount * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -periods));
-    
-    for (let i = 1; i <= periods; i++) {
-        let date;
-        if (frequency === "monthly") date = addMonths(start, i);
-        else if (frequency === "weekly") date = addWeeks(start, i);
-        else date = addDays(start, i);
-        
-        schedule.push({
-            date: format(date, "yyyy-MM-dd"),
-            amount: Math.round(pmt),
-            status: "upcoming"
-        });
-    }
-  }
-  
-  return { schedule, pmt: Math.round(pmt) };
-};
+  setLenderProfileId: (id: string | null) => void;
+  setCurrentUser: (type: "master" | "borrower" | null) => void;
+  setCurrentBorrowerLoanId: (id: string | null) => void;
+}
 
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      lenderProfile: null,
-      loans: [],
-      paymentRequests: [],
+      lenderProfileId: null,
       currentUserType: null,
-      currentBorrowerLoan: null,
+      currentBorrowerLoanId: null,
 
-      setLenderProfile: (profile) => set({ lenderProfile: profile }),
-      
-      createLoan: (loanData) => set((state) => {
-        const { schedule, pmt } = calculateSchedule(loanData.amount, loanData.ratePercent, loanData.termMonths, loanData.frequency, loanData.startDate);
-        const total = pmt * (loanData.frequency === "once" ? 1 : (loanData.frequency === "weekly" ? loanData.termMonths * 4 : (loanData.frequency === "daily" ? loanData.termMonths * 30 : loanData.termMonths)));
-        
-        const newLoan: Loan = {
-          ...loanData,
-          id: `loan-${Date.now()}`,
-          status: "pending",
-          monthlyPayment: pmt,
-          totalRepayment: total,
-          remainingAmount: total,
-          schedule,
-        };
-        
-        return { loans: [newLoan, ...state.loans] };
-      }),
-      
-      requestPayment: (loanId, amount) => set((state) => ({
-        paymentRequests: [{
-            id: `req-${Date.now()}`,
-            loanId,
-            amount,
-            status: "pending",
-            timestamp: new Date().toISOString()
-        }, ...state.paymentRequests]
-      })),
-
-      confirmPayment: (requestId) => set((state) => {
-        const req = state.paymentRequests.find(r => r.id === requestId);
-        if (!req) return state;
-
-        const updatedLoans = state.loans.map(loan => {
-            if (loan.id === req.loanId) {
-                const currentRemaining = loan.remainingAmount;
-                const paidAmount = req.amount;
-                const newRemaining = Math.max(0, currentRemaining - paidAmount);
-                
-                let newSchedule = [...loan.schedule];
-                const nextItemIndex = newSchedule.findIndex(s => s.status === "upcoming");
-                
-                // Mark current as paid with actual amount
-                if (nextItemIndex !== -1) {
-                    newSchedule[nextItemIndex] = {
-                        ...newSchedule[nextItemIndex],
-                        status: "paid",
-                        paidDate: new Date().toISOString(),
-                        paidAmount: paidAmount,
-                        amount: paidAmount // Update displayed amount to actual paid
-                    };
-                    
-                    // Recalculate remaining schedule if there's debt left and frequency isn't "once"
-                    if (newRemaining > 0 && loan.frequency !== "once") {
-                        const remainingItemsCount = newSchedule.filter(s => s.status === "upcoming").length;
-                        if (remainingItemsCount > 0) {
-                            // Simple annuity recalculation for the remaining periods
-                            let ratePerPeriod = (loan.ratePercent / 100) / 12;
-                            if (loan.frequency === "weekly") ratePerPeriod = (loan.ratePercent / 100) / 52;
-                            else if (loan.frequency === "daily") ratePerPeriod = (loan.ratePercent / 100) / 365;
-                            
-                            const newPmt = Math.round((newRemaining * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -remainingItemsCount)));
-                            
-                            newSchedule = newSchedule.map(item => 
-                                item.status === "upcoming" ? { ...item, amount: newPmt } : item
-                            );
-                        }
-                    }
-                }
-                
-                const status = newRemaining <= 0 ? "closed" : loan.status;
-                
-                return { 
-                    ...loan, 
-                    schedule: newSchedule,
-                    remainingAmount: newRemaining,
-                    status
-                };
-            }
-            return loan;
-        });
-
-        return {
-            paymentRequests: state.paymentRequests.map(r => r.id === requestId ? { ...r, status: "confirmed" } : r),
-            loans: updatedLoans,
-            currentBorrowerLoan: state.currentBorrowerLoan?.id === req.loanId ? updatedLoans.find(l => l.id === req.loanId) || null : state.currentBorrowerLoan
-        };
-      }),
-
-      rateUser: (loanId, type, stars) => set((state) => ({
-        loans: state.loans.map(l => l.id === loanId ? { ...l, [type === "borrower" ? "borrowerRating" : "lenderRating"]: stars } : l),
-        currentBorrowerLoan: state.currentBorrowerLoan?.id === loanId ? { ...state.currentBorrowerLoan, [type === "borrower" ? "borrowerRating" : "lenderRating"]: stars } : state.currentBorrowerLoan
-      })),
-
-      updateLoanStatus: (id, status, data) => set((state) => ({
-        loans: state.loans.map(l => l.id === id ? { ...l, status, ...data } : l),
-        currentBorrowerLoan: state.currentBorrowerLoan?.id === id ? { ...state.currentBorrowerLoan, status, ...data } : state.currentBorrowerLoan
-      })),
-
+      setLenderProfileId: (id) => set({ lenderProfileId: id }),
       setCurrentUser: (type) => set({ currentUserType: type }),
-      setCurrentBorrowerLoan: (loan) => set({ currentBorrowerLoan: loan }),
+      setCurrentBorrowerLoanId: (id) => set({ currentBorrowerLoanId: id }),
     }),
     {
-      name: "meloan-storage-v7",
+      name: "meloan-storage-v8",
     }
   )
 );

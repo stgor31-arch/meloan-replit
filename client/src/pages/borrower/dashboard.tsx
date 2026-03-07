@@ -3,22 +3,66 @@ import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wallet, Calendar, CheckCircle2, Star, PartyPopper } from "lucide-react";
+import { Wallet, Calendar, CheckCircle2, Star, PartyPopper, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { getLoan, createPaymentRequest, rateLoan } from "@/lib/api";
 
 export default function BorrowerDashboard() {
-  const { currentBorrowerLoan, requestPayment, rateUser } = useStore();
+  const { currentBorrowerLoanId } = useStore();
   const t = translations;
-  const myLoan = currentBorrowerLoan;
   const { toast } = useToast();
-
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [isPending, setIsPending] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+
+  const { data: myLoan, isLoading } = useQuery({
+    queryKey: ["/api/loans", currentBorrowerLoanId],
+    queryFn: () => currentBorrowerLoanId ? getLoan(currentBorrowerLoanId) : null,
+    enabled: !!currentBorrowerLoanId,
+    refetchInterval: 5000,
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: (amount: number) => createPaymentRequest({
+      loanId: currentBorrowerLoanId!,
+      amount,
+      timestamp: new Date().toISOString(),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans", currentBorrowerLoanId] });
+      toast({ title: t.payment_requested, description: `${paymentAmount} ₽` });
+      setPaymentAmount("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const rateMutation = useMutation({
+    mutationFn: (stars: number) => rateLoan(currentBorrowerLoanId!, "lender", stars),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans", currentBorrowerLoanId] });
+      toast({ title: t.rating_saved });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <MobileLayout title={t.loans}>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    );
+  }
 
   if (!myLoan) {
       return (
@@ -35,19 +79,7 @@ export default function BorrowerDashboard() {
 
   const handlePayment = () => {
     if (!paymentAmount) return;
-    requestPayment(myLoan.id, parseFloat(paymentAmount));
-    setIsPending(true);
-    toast({
-        title: t.payment_requested,
-        description: `${paymentAmount} ₽`
-    });
-    setPaymentAmount("");
-    setTimeout(() => setIsPending(false), 2000);
-  };
-
-  const handleRate = (stars: number) => {
-    rateUser(myLoan.id, "lender", stars);
-    toast({ title: t.rating_saved });
+    paymentMutation.mutate(parseFloat(paymentAmount));
   };
 
   return (
@@ -71,9 +103,10 @@ export default function BorrowerDashboard() {
                         {[1, 2, 3, 4, 5].map((star) => (
                             <button
                                 key={star}
+                                data-testid={`button-rate-lender-${star}`}
                                 onMouseEnter={() => setHoverRating(star)}
                                 onMouseLeave={() => setHoverRating(0)}
-                                onClick={() => handleRate(star)}
+                                onClick={() => rateMutation.mutate(star)}
                                 className="focus:outline-none transition-transform active:scale-90"
                             >
                                 <Star 
@@ -97,7 +130,7 @@ export default function BorrowerDashboard() {
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <p className="text-white/80 text-sm font-medium">{t.remaining_amount}</p>
-                        <h2 className="text-4xl font-display font-bold mt-1">
+                        <h2 className="text-4xl font-display font-bold mt-1" data-testid="text-remaining-borrower">
                             {(myLoan.remainingAmount || 0).toLocaleString()} ₽
                         </h2>
                     </div>
@@ -108,10 +141,10 @@ export default function BorrowerDashboard() {
                 
                 <div className="space-y-1">
                     <div className="flex justify-between text-sm text-white/80">
-                        <span>Оплачено {myLoan.schedule.filter(s => s.status === 'paid').length} из {myLoan.schedule.length}</span>
+                        <span>Оплачено {(myLoan.schedule || []).filter((s: any) => s.status === 'paid').length} из {(myLoan.schedule || []).length}</span>
                     </div>
                     <div className="h-2 bg-black/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-white/90 rounded-full" style={{ width: `${(myLoan.schedule.filter(s => s.status === 'paid').length / myLoan.schedule.length) * 100}%` }} />
+                        <div className="h-full bg-white/90 rounded-full" style={{ width: `${((myLoan.schedule || []).filter((s: any) => s.status === 'paid').length / Math.max((myLoan.schedule || []).length, 1)) * 100}%` }} />
                     </div>
                 </div>
            </CardContent>
@@ -122,6 +155,7 @@ export default function BorrowerDashboard() {
                 <div className="space-y-2">
                     <p className="text-sm font-semibold">{t.payment_amount}</p>
                     <Input 
+                        data-testid="input-payment-amount"
                         type="number" 
                         value={paymentAmount} 
                         onChange={(e) => setPaymentAmount(e.target.value)} 
@@ -130,10 +164,12 @@ export default function BorrowerDashboard() {
                     />
                 </div>
                 <Button 
+                    data-testid="button-send-payment"
                     onClick={handlePayment} 
-                    disabled={!paymentAmount || isPending}
+                    disabled={!paymentAmount || paymentMutation.isPending}
                     className="w-full h-12 rounded-xl bg-primary text-white font-bold"
                 >
+                    {paymentMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     {t.confirm_payment}
                 </Button>
             </Card>
@@ -145,8 +181,8 @@ export default function BorrowerDashboard() {
                 {t.schedule}
             </h3>
             <div className="space-y-3">
-                {myLoan.schedule.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm">
+                {(myLoan.schedule || []).map((item: any, i: number) => (
+                    <div key={item.id || i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm" data-testid={`schedule-item-borrower-${i}`}>
                         <div className="flex items-center gap-4">
                             <div className={cn(
                                 "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",

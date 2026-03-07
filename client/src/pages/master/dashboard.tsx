@@ -3,21 +3,34 @@ import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles } from "lucide-react";
+import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { getLoans, getLenderProfile } from "@/lib/api";
 
 export default function MasterDashboard() {
-  const { loans, lenderProfile } = useStore();
+  const { lenderProfileId } = useStore();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const t = translations;
-
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'pending');
+  const { data: lenderProfile } = useQuery({
+    queryKey: ["/api/lender-profile", lenderProfileId],
+    queryFn: () => lenderProfileId ? getLenderProfile(lenderProfileId) : null,
+    enabled: !!lenderProfileId,
+  });
+
+  const { data: loans = [], isLoading } = useQuery({
+    queryKey: ["/api/loans", lenderProfileId],
+    queryFn: () => lenderProfileId ? getLoans(lenderProfileId) : [],
+    enabled: !!lenderProfileId,
+  });
+
+  const activeLoans = loans.filter((l: any) => l.status === 'active' || l.status === 'pending');
 
   const handleCreate = () => {
     if (!lenderProfile) {
@@ -35,10 +48,10 @@ export default function MasterDashboard() {
   return (
     <MobileLayout title={t.dashboard}>
       <div className="space-y-6 relative">
-        {/* Monetization Top Drawer (Handle) */}
         <div 
             className="bg-gradient-to-r from-orange-400 to-amber-500 rounded-2xl p-3 flex items-center justify-between text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform"
             onClick={() => setIsDrawerOpen(true)}
+            data-testid="button-open-pricing"
         >
             <div className="flex items-center gap-3">
                 <Sparkles className="w-5 h-5" />
@@ -47,7 +60,6 @@ export default function MasterDashboard() {
             <ChevronDown className="w-5 h-5 opacity-70" />
         </div>
 
-        {/* Drawer Content Overlay */}
         <AnimatePresence>
             {isDrawerOpen && (
                 <>
@@ -70,7 +82,6 @@ export default function MasterDashboard() {
                         </div>
 
                         <div className="space-y-4">
-                            {/* Free */}
                             <Card className="border-2 border-muted rounded-3xl overflow-hidden">
                                 <CardContent className="p-5">
                                     <div className="flex justify-between items-start mb-2">
@@ -85,7 +96,6 @@ export default function MasterDashboard() {
                                 </CardContent>
                             </Card>
 
-                            {/* Expert */}
                             <Card className="border-2 border-orange-200 bg-orange-50/30 rounded-3xl overflow-hidden">
                                 <CardContent className="p-5">
                                     <div className="flex justify-between items-start mb-2">
@@ -100,7 +110,6 @@ export default function MasterDashboard() {
                                 </CardContent>
                             </Card>
 
-                            {/* PRO */}
                             <Card className="border-2 border-primary bg-primary/5 rounded-3xl overflow-hidden">
                                 <CardContent className="p-5">
                                     <div className="flex justify-between items-start mb-2">
@@ -129,15 +138,15 @@ export default function MasterDashboard() {
             <h2 className="text-2xl font-bold text-gray-900">Meloan</h2>
             <p className="text-sm text-muted-foreground">{t.simple_lending}</p>
           </div>
-          <Button size="icon" className="rounded-2xl w-12 h-12 shadow-lg shadow-primary/20" onClick={handleCreate}>
+          <Button data-testid="button-create-loan" size="icon" className="rounded-2xl w-12 h-12 shadow-lg shadow-primary/20" onClick={handleCreate}>
             <Plus className="w-6 h-6" />
           </Button>
         </div>
 
-        {/* Main Dashboard Cards */}
         <div className="grid grid-cols-2 gap-4">
           <Card 
             className="bg-primary text-white border-none rounded-3xl shadow-xl shadow-primary/20 cursor-pointer"
+            data-testid="card-active-loans"
             onClick={() => {
                 const recentSection = document.getElementById('recent-loans');
                 recentSection?.scrollIntoView({ behavior: 'smooth' });
@@ -146,12 +155,12 @@ export default function MasterDashboard() {
             <CardContent className="p-4 flex flex-col justify-between h-28">
               <p className="text-xs text-white/80 uppercase font-bold tracking-wider">{t.total_active}</p>
               <div className="flex items-end justify-between">
-                <h3 className="text-3xl font-display font-bold">{activeLoans.length}</h3>
+                <h3 className="text-3xl font-display font-bold" data-testid="text-active-count">{activeLoans.length}</h3>
                 <ChevronDown className="w-5 h-5 text-white/50" />
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-white border-none rounded-3xl shadow-md" onClick={() => setLocation("/master/profile")}>
+          <Card className="bg-white border-none rounded-3xl shadow-md" onClick={() => setLocation("/master/profile")} data-testid="card-profile">
             <CardContent className="p-4 flex flex-col justify-between h-28">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{t.profile}</p>
               <div className="flex items-center justify-between">
@@ -164,7 +173,6 @@ export default function MasterDashboard() {
           </Card>
         </div>
 
-        {/* Portfolio Analytics (PRO) */}
         <div className="space-y-4">
             <h3 className="font-display font-bold text-lg flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-primary" />
@@ -182,18 +190,24 @@ export default function MasterDashboard() {
             </Card>
         </div>
 
-        {/* Recent Loans Section */}
         <div className="space-y-4" id="recent-loans">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-display font-bold text-lg">{t.recent_loans}</h3>
           </div>
 
+          {isLoading && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
+
           <div className="space-y-3">
-            {activeLoans.map((loan) => (
+            {activeLoans.map((loan: any) => (
               <Card 
                 key={loan.id} 
                 className="rounded-3xl border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden group"
                 onClick={() => setLocation(`/master/loan/${loan.id}`)}
+                data-testid={`card-loan-${loan.id}`}
               >
                 <CardContent className="p-0">
                   <div className="p-4 flex items-center justify-between">
@@ -217,7 +231,7 @@ export default function MasterDashboard() {
                     <div className="flex gap-4">
                       <div className="text-center">
                         <p className="text-[8px] text-muted-foreground uppercase font-bold">{t.rate}</p>
-                        <p className="text-xs font-bold">{loan.ratePercent}%</p>
+                        <p className="text-xs font-bold">{Number(loan.ratePercent)}%</p>
                       </div>
                       <div className="text-center">
                         <p className="text-[8px] text-muted-foreground uppercase font-bold">{t.term}</p>
@@ -236,7 +250,7 @@ export default function MasterDashboard() {
               </Card>
             ))}
 
-            {activeLoans.length === 0 && (
+            {!isLoading && activeLoans.length === 0 && (
               <div className="text-center py-12 px-6 bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-200">
                 <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
                   <FileText className="w-8 h-8 text-gray-200" />

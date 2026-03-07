@@ -10,19 +10,16 @@ import { useLocation, useRoute } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { FileText } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { getLoan, acceptLoan, getLenderProfile } from "@/lib/api";
 
 export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
-  const { loans, updateLoanStatus, lenderProfile, setCurrentBorrowerLoan } = useStore();
+  const { setCurrentBorrowerLoanId } = useStore();
   const loanId = params?.id;
-  
-  // LOGGING TO DEBUG
-  console.log("Invite page loanId from URL:", loanId);
-  console.log("All loans in store:", loans);
-
-  const loan = loans.find(l => l.id === loanId);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
@@ -31,20 +28,54 @@ export default function BorrowerInvite() {
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [signedReceipt, setSignedReceipt] = useState(false);
 
+  const { data: loan, isLoading } = useQuery({
+    queryKey: ["/api/loans", loanId],
+    queryFn: () => getLoan(loanId!),
+    enabled: !!loanId,
+  });
+
+  const { data: lenderProfile } = useQuery({
+    queryKey: ["/api/lender-profile", loan?.lenderProfileId],
+    queryFn: () => loan?.lenderProfileId ? getLenderProfile(loan.lenderProfileId) : null,
+    enabled: !!loan?.lenderProfileId,
+  });
+
   const form = useForm({
     defaultValues: {
-        borrowerName: loan?.borrowerName || "",
+        borrowerName: "",
         passport: "",
         address: ""
     }
   });
 
-  // Sync borrowerName if loan loads late
   useEffect(() => {
     if (loan) {
       form.setValue("borrowerName", loan.borrowerName);
     }
   }, [loan]);
+
+  const acceptMutation = useMutation({
+    mutationFn: (data: { borrowerPassport: string; borrowerAddress: string }) => acceptLoan(loanId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
+      setCurrentBorrowerLoanId(loanId!);
+      toast({ title: "Заём принят!", description: "Средства скоро поступят." });
+      setLocation("/borrower/dashboard");
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    );
+  }
 
   if (!loan) {
     return (
@@ -52,7 +83,7 @@ export default function BorrowerInvite() {
         <div className="flex flex-col items-center justify-center h-[50vh] text-center p-6 space-y-4">
           <h3 className="text-lg font-semibold">Заём не найден</h3>
           <p className="text-muted-foreground text-sm">
-            Заём с ID "{loanId}" не найден в локальном хранилище этого браузера.
+            Заём с ID "{loanId}" не найден.
           </p>
           <Button onClick={() => setLocation("/")}>На главную</Button>
         </div>
@@ -68,29 +99,10 @@ export default function BorrowerInvite() {
 
   const handleSign = (data: { borrowerName: string, passport: string, address: string }) => {
     if (!signedReceipt) return;
-    
-    updateLoanStatus(loan.id, "active", {
-        borrowerPassport: data.passport,
-        borrowerAddress: data.address,
-        signedAt: new Date().toISOString()
+    acceptMutation.mutate({
+      borrowerPassport: data.passport,
+      borrowerAddress: data.address,
     });
-
-    const updatedLoan = {
-        ...loan,
-        status: "active" as const,
-        borrowerPassport: data.passport,
-        borrowerAddress: data.address,
-        signedAt: new Date().toISOString()
-    };
-
-    setCurrentBorrowerLoan(updatedLoan);
-
-    toast({
-        title: "Заём принят!",
-        description: "Средства скоро поступят."
-    });
-    
-    setLocation("/borrower/dashboard");
   };
 
   return (
@@ -127,7 +139,7 @@ export default function BorrowerInvite() {
                         <CardContent className="p-6 space-y-6">
                             <div className="text-center">
                                 <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-widest">{t.amount}</p>
-                                <p className="text-4xl font-display font-bold text-primary mt-1">
+                                <p className="text-4xl font-display font-bold text-primary mt-1" data-testid="text-loan-amount">
                                     {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.amount)}
                                 </p>
                             </div>
@@ -135,7 +147,7 @@ export default function BorrowerInvite() {
                             <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-2xl">
                                 <div>
                                     <p className="text-[10px] text-muted-foreground uppercase">{t.rate}</p>
-                                    <p className="font-semibold">{loan.ratePercent}%</p>
+                                    <p className="font-semibold">{Number(loan.ratePercent)}%</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] text-muted-foreground uppercase">{t.term}</p>
@@ -156,6 +168,7 @@ export default function BorrowerInvite() {
                     <div className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-border">
                         <Checkbox 
                             id="terms" 
+                            data-testid="checkbox-terms"
                             checked={confirmedTerms}
                             onCheckedChange={(c) => setConfirmedTerms(c as boolean)}
                             className="mt-1"
@@ -166,6 +179,7 @@ export default function BorrowerInvite() {
                     </div>
 
                     <Button 
+                        data-testid="button-continue"
                         onClick={handleTermsConfirm}
                         disabled={!confirmedTerms}
                         className="w-full h-14 text-lg rounded-2xl"
@@ -202,20 +216,21 @@ export default function BorrowerInvite() {
                     <form onSubmit={form.handleSubmit(handleSign)} className="space-y-4">
                         <div className="space-y-2">
                             <Label>{t.contact_name}</Label>
-                            <Input {...form.register("borrowerName", { required: true })} className="rounded-xl h-12" />
+                            <Input data-testid="input-borrower-name" {...form.register("borrowerName", { required: true })} className="rounded-xl h-12" />
                         </div>
                         <div className="space-y-2">
                             <Label>{t.passport}</Label>
-                            <Input {...form.register("passport", { required: true })} placeholder="1234 567890" className="rounded-xl h-12" />
+                            <Input data-testid="input-borrower-passport" {...form.register("passport", { required: true })} placeholder="1234 567890" className="rounded-xl h-12" />
                         </div>
                         <div className="space-y-2">
                             <Label>{t.address}</Label>
-                            <Input {...form.register("address", { required: true })} className="rounded-xl h-12" />
+                            <Input data-testid="input-borrower-address" {...form.register("address", { required: true })} className="rounded-xl h-12" />
                         </div>
 
                         <div className="flex items-start gap-3 p-4 mt-6 bg-white rounded-2xl border border-border">
                             <Checkbox 
                                 id="receipt" 
+                                data-testid="checkbox-receipt"
                                 checked={signedReceipt}
                                 onCheckedChange={(c) => setSignedReceipt(c as boolean)}
                                 className="mt-1 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
@@ -227,10 +242,12 @@ export default function BorrowerInvite() {
                         </div>
 
                         <Button 
+                            data-testid="button-sign"
                             type="submit" 
-                            disabled={!signedReceipt}
+                            disabled={!signedReceipt || acceptMutation.isPending}
                             className="w-full h-14 text-lg rounded-2xl bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
                         >
+                            {acceptMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                             {t.sign_receipt}
                         </Button>
                     </form>

@@ -9,14 +9,23 @@ import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { createLoan, getLenderProfile } from "@/lib/api";
 
 export default function MasterCreateLoan() {
-  const { createLoan, lenderProfile } = useStore();
+  const { lenderProfileId } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
+
+  const { data: lenderProfile } = useQuery({
+    queryKey: ["/api/lender-profile", lenderProfileId],
+    queryFn: () => lenderProfileId ? getLenderProfile(lenderProfileId) : null,
+    enabled: !!lenderProfileId,
+  });
 
   const [amount, setAmount] = useState(100000);
   const [months, setMonths] = useState(12);
@@ -31,21 +40,26 @@ export default function MasterCreateLoan() {
     }
   });
 
+  const mutation = useMutation({
+    mutationFn: createLoan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
+      toast({ title: "Заём создан", description: "Ссылка-приглашение готова." });
+      setLocation("/master/dashboard");
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
   const onSubmit = (data: any) => {
-    // Ensure we store digits for easier searching later, but keep the display format if needed
-    // However, the store expects borrowerContact. Let's make sure it's saved.
-    createLoan({
-        amount,
-        termMonths: months,
-        ratePercent: rate,
-        ...data
+    mutation.mutate({
+      lenderProfileId: lenderProfileId!,
+      amount,
+      termMonths: months,
+      ratePercent: rate,
+      ...data,
     });
-    
-    toast({
-        title: "Заём создан",
-        description: "Ссылка-приглашение готова."
-    });
-    setLocation("/master/dashboard");
   };
 
   if (!lenderProfile) {
@@ -74,7 +88,7 @@ export default function MasterCreateLoan() {
                             {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount)}
                         </span>
                     </div>
-                    <Slider value={[amount]} onValueChange={(v) => setAmount(v[0])} min={5000} max={3000000} step={5000} className="py-2" />
+                    <Slider data-testid="slider-amount" value={[amount]} onValueChange={(v) => setAmount(v[0])} min={5000} max={3000000} step={5000} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -82,7 +96,7 @@ export default function MasterCreateLoan() {
                         <Label>{t.term}</Label>
                         <span className="text-xl font-bold">{months} {t.months}</span>
                     </div>
-                    <Slider value={[months]} onValueChange={(v) => setMonths(v[0])} min={1} max={120} step={1} className="py-2" />
+                    <Slider data-testid="slider-term" value={[months]} onValueChange={(v) => setMonths(v[0])} min={1} max={120} step={1} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -90,7 +104,7 @@ export default function MasterCreateLoan() {
                         <Label>{t.rate}</Label>
                         <span className="text-xl font-bold">{rate}%</span>
                     </div>
-                    <Slider value={[rate]} onValueChange={(v) => setRate(v[0])} min={0} max={100} step={1} className="py-2" />
+                    <Slider data-testid="slider-rate" value={[rate]} onValueChange={(v) => setRate(v[0])} min={0} max={100} step={1} className="py-2" />
                 </div>
 
                 <div className="space-y-4">
@@ -100,7 +114,7 @@ export default function MasterCreateLoan() {
                       control={form.control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger className="h-12 rounded-xl">
+                            <SelectTrigger data-testid="select-frequency" className="h-12 rounded-xl">
                                 <SelectValue placeholder="Выберите периодичность" />
                             </SelectTrigger>
                             <SelectContent>
@@ -120,7 +134,7 @@ export default function MasterCreateLoan() {
                 <div className="space-y-4">
                     <div className="space-y-2">
                         <Label>{t.contact_name}</Label>
-                        <Input {...form.register("borrowerName", { required: true })} className="rounded-xl h-12" />
+                        <Input data-testid="input-borrower-name" {...form.register("borrowerName", { required: true })} className="rounded-xl h-12" />
                     </div>
                     <div className="space-y-2">
                         <Label>{t.email_phone}</Label>
@@ -130,6 +144,7 @@ export default function MasterCreateLoan() {
                           rules={{ required: true }}
                           render={({ field }) => (
                             <PhoneInput 
+                              data-testid="input-borrower-phone"
                               value={field.value} 
                               onChange={field.onChange} 
                               className="rounded-xl h-12" 
@@ -139,12 +154,13 @@ export default function MasterCreateLoan() {
                     </div>
                     <div className="space-y-2">
                         <Label>{t.first_payment}</Label>
-                        <Input type="date" {...form.register("startDate", { required: true })} className="rounded-xl h-12" />
+                        <Input data-testid="input-start-date" type="date" {...form.register("startDate", { required: true })} className="rounded-xl h-12" />
                     </div>
                 </div>
             </div>
 
-            <Button type="submit" className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-primary/20">
+            <Button data-testid="button-create-loan-submit" type="submit" className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-primary/20" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 {t.create_and_invite}
             </Button>
         </form>

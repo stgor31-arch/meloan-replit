@@ -1,29 +1,74 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations } from "@/lib/store";
+import { translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useLocation, useRoute } from "wouter";
-import { Calendar, ChevronLeft, Copy, Check, Bell, Gavel, Star, PartyPopper } from "lucide-react";
+import { useRoute } from "wouter";
+import { Calendar, Copy, Check, Bell, Gavel, Star, PartyPopper, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { getLoan, getPaymentRequests, confirmPayment, rateLoan } from "@/lib/api";
 
 export default function MasterLoanDetails() {
   const [, params] = useRoute("/master/loan/:id");
-  const { loans, paymentRequests, confirmPayment, rateUser } = useStore();
   const loanId = params?.id;
-  const loan = loans.find(l => l.id === loanId);
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
   const t = translations;
 
-  if (!loan) return null;
+  const { data: loan, isLoading } = useQuery({
+    queryKey: ["/api/loans", loanId],
+    queryFn: () => getLoan(loanId!),
+    enabled: !!loanId,
+    refetchInterval: 5000,
+  });
 
-  const relevantRequests = paymentRequests.filter(r => r.loanId === loan.id && r.status === "pending");
+  const { data: allRequests = [] } = useQuery({
+    queryKey: ["/api/payment-requests", loanId],
+    queryFn: () => getPaymentRequests(loanId!),
+    enabled: !!loanId,
+    refetchInterval: 5000,
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: confirmPayment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans", loanId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-requests", loanId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const rateMutation = useMutation({
+    mutationFn: (stars: number) => rateLoan(loanId!, "borrower", stars),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans", loanId] });
+      toast({ title: t.rating_saved });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading || !loan) {
+    return (
+      <MobileLayout title={t.loan_details} showBack>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  const relevantRequests = allRequests.filter((r: any) => r.status === "pending");
   const inviteLink = `${window.location.origin}/invite/${loan.id}`;
 
   const handleCopyLink = () => {
@@ -31,11 +76,6 @@ export default function MasterLoanDetails() {
     setCopied(true);
     toast({ title: t.link_copied });
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleRate = (stars: number) => {
-    rateUser(loan.id, "borrower", stars);
-    toast({ title: t.rating_saved });
   };
 
   return (
@@ -59,9 +99,10 @@ export default function MasterLoanDetails() {
                         {[1, 2, 3, 4, 5].map((star) => (
                             <button
                                 key={star}
+                                data-testid={`button-rate-${star}`}
                                 onMouseEnter={() => setHoverRating(star)}
                                 onMouseLeave={() => setHoverRating(0)}
-                                onClick={() => handleRate(star)}
+                                onClick={() => rateMutation.mutate(star)}
                                 className="focus:outline-none transition-transform active:scale-90"
                             >
                                 <Star 
@@ -79,7 +120,7 @@ export default function MasterLoanDetails() {
             </motion.div>
         )}
 
-        {relevantRequests.map(req => (
+        {relevantRequests.map((req: any) => (
             <Card key={req.id} className="border-2 border-primary bg-primary/5 animate-pulse rounded-2xl">
                 <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -89,7 +130,13 @@ export default function MasterLoanDetails() {
                             <p className="text-lg font-bold">{req.amount.toLocaleString()} ₽</p>
                         </div>
                     </div>
-                    <Button size="sm" onClick={() => confirmPayment(req.id)} className="rounded-xl shadow-lg">
+                    <Button 
+                      data-testid={`button-confirm-${req.id}`}
+                      size="sm" 
+                      onClick={() => confirmMutation.mutate(req.id)} 
+                      className="rounded-xl shadow-lg"
+                      disabled={confirmMutation.isPending}
+                    >
                         {t.confirm}
                     </Button>
                 </CardContent>
@@ -99,7 +146,7 @@ export default function MasterLoanDetails() {
         <Card className="rounded-3xl border-none shadow-lg overflow-hidden">
           <div className="bg-primary p-6 text-white text-center">
              <p className="text-white/80 text-sm">{t.remaining_amount}</p>
-             <h2 className="text-3xl font-bold mt-1">
+             <h2 className="text-3xl font-bold mt-1" data-testid="text-remaining">
                 {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(loan.remainingAmount || 0)}
              </h2>
              <Badge className={cn("mt-4 border-none text-white backdrop-blur-sm", loan.status === "closed" ? "bg-green-500/50" : "bg-white/20")}>
@@ -114,7 +161,7 @@ export default function MasterLoanDetails() {
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground uppercase">{t.rate}</p>
-                    <p className="font-semibold">{loan.ratePercent}%</p>
+                    <p className="font-semibold">{Number(loan.ratePercent)}%</p>
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground uppercase">{t.monthly_payment}</p>
@@ -134,7 +181,7 @@ export default function MasterLoanDetails() {
 
             {loan.status !== "closed" && (
                 <div className="grid grid-cols-2 gap-2 pt-2">
-                    <Button variant="secondary" className="rounded-2xl gap-2" onClick={handleCopyLink}>
+                    <Button variant="secondary" className="rounded-2xl gap-2" onClick={handleCopyLink} data-testid="button-copy-link">
                         {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         {t.copy_link}
                     </Button>
@@ -153,8 +200,8 @@ export default function MasterLoanDetails() {
                 {t.schedule}
             </h3>
             <div className="space-y-3">
-                {loan.schedule.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm">
+                {(loan.schedule || []).map((item: any, i: number) => (
+                    <div key={item.id || i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm" data-testid={`schedule-item-${i}`}>
                         <div className="flex items-center gap-4">
                             <div className={cn(
                                 "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",

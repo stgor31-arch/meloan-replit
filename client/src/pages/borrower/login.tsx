@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { findLoanByPhone } from "@/lib/api";
 
 export default function BorrowerLogin() {
-  const { loans, setCurrentBorrowerLoan } = useStore();
+  const { setCurrentBorrowerLoanId } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
+  const [isSearching, setIsSearching] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -20,30 +23,32 @@ export default function BorrowerLogin() {
     }
   });
 
-  const onSubmit = (data: { phone: string }) => {
-    const searchDigits = data.phone.replace(/\D/g, '');
-    const normalizedSearch = searchDigits.length >= 10 ? searchDigits.slice(-10) : searchDigits;
-
-    // FIND LOAN: Try matching normalized digits
-    const loan = loans.find(l => {
-        const contactDigits = l.borrowerContact.replace(/\D/g, '');
-        const normalizedContact = contactDigits.length >= 10 ? contactDigits.slice(-10) : contactDigits;
-        return normalizedContact === normalizedSearch;
-    });
-
-    if (loan) {
-      setCurrentBorrowerLoan(loan);
-      if (loan.status === "pending") {
-        setLocation(`/invite/${loan.id}`);
+  const onSubmit = async (data: { phone: string }) => {
+    setIsSearching(true);
+    try {
+      const loan = await findLoanByPhone(data.phone);
+      if (loan) {
+        setCurrentBorrowerLoanId(loan.id);
+        if (loan.status === "pending") {
+          setLocation(`/invite/${loan.id}`);
+        } else {
+          setLocation("/borrower/dashboard");
+        }
       } else {
-        setLocation("/borrower/dashboard");
+        toast({
+          variant: "destructive",
+          title: t.no_loan_found,
+          description: "Заём не найден. Пожалуйста, убедитесь, что ввели тот же номер, который указал Кредитор."
+        });
       }
-    } else {
+    } catch {
       toast({
         variant: "destructive",
         title: t.no_loan_found,
         description: "Заём не найден. Пожалуйста, убедитесь, что ввели тот же номер, который указал Кредитор."
       });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -65,6 +70,7 @@ export default function BorrowerLogin() {
               render={({ field }) => (
                 <PhoneInput 
                   id="phone" 
+                  data-testid="input-borrower-phone"
                   value={field.value}
                   onChange={field.onChange}
                   className="rounded-xl h-14 text-2xl text-center" 
@@ -74,8 +80,8 @@ export default function BorrowerLogin() {
             />
           </div>
 
-          <Button type="submit" className="w-full h-14 rounded-2xl text-lg gap-2">
-            <Search className="w-5 h-5" />
+          <Button data-testid="button-find-loan" type="submit" className="w-full h-14 rounded-2xl text-lg gap-2" disabled={isSearching}>
+            {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
             {t.find_loan}
           </Button>
         </form>
