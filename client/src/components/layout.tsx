@@ -45,6 +45,7 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
                       alt="Meloan" 
                       className="h-10 w-auto object-contain"
                   />
+                  <span className="text-3xl font-display font-bold text-gray-900 tracking-tight">Meloan</span>
               </div>
             ) : (
               <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
