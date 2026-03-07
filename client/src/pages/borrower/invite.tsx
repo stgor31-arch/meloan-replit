@@ -18,7 +18,7 @@ import { getLoan, acceptLoan, getLenderProfile } from "@/lib/api";
 
 export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
-  const { setCurrentBorrowerLoanId } = useStore();
+  const { setCurrentBorrowerLoanId, setBorrowerPhone } = useStore();
   const loanId = params?.id;
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -59,6 +59,9 @@ export default function BorrowerInvite() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
       setCurrentBorrowerLoanId(loanId!);
+      if (loan?.borrowerContact) {
+        setBorrowerPhone(loan.borrowerContact);
+      }
       toast({ title: "Заём принят!", description: "Средства скоро поступят." });
       setLocation("/borrower/dashboard");
     },

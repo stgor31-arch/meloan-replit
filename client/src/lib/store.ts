@@ -5,10 +5,12 @@ interface AppState {
   lenderProfileId: string | null;
   currentUserType: "master" | "borrower" | null;
   currentBorrowerLoanId: string | null;
+  borrowerPhone: string | null;
 
   setLenderProfileId: (id: string | null) => void;
   setCurrentUser: (type: "master" | "borrower" | null) => void;
   setCurrentBorrowerLoanId: (id: string | null) => void;
+  setBorrowerPhone: (phone: string | null) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -17,13 +19,15 @@ export const useStore = create<AppState>()(
       lenderProfileId: null,
       currentUserType: null,
       currentBorrowerLoanId: null,
+      borrowerPhone: null,
 
       setLenderProfileId: (id) => set({ lenderProfileId: id }),
       setCurrentUser: (type) => set({ currentUserType: type }),
       setCurrentBorrowerLoanId: (id) => set({ currentBorrowerLoanId: id }),
+      setBorrowerPhone: (phone) => set({ borrowerPhone: phone }),
     }),
     {
-      name: "meloan-storage-v8",
+      name: "meloan-storage-v9",
     }
   )
 );

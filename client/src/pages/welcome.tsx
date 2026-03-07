@@ -57,7 +57,7 @@ const STORIES = [
 
 export default function Welcome() {
   const [, setLocation] = useLocation();
-  const { setCurrentUser, currentUserType, lenderProfileId, currentBorrowerLoanId } = useStore();
+  const { setCurrentUser, currentUserType, lenderProfileId, currentBorrowerLoanId, borrowerPhone } = useStore();
   const t = translations;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedStory, setSelectedStory] = useState<typeof STORIES[0] | null>(null);
@@ -66,7 +66,7 @@ export default function Welcome() {
   useEffect(() => {
     if (currentUserType === "master" && lenderProfileId) {
       setLocation("/master/dashboard");
-    } else if (currentUserType === "borrower" && currentBorrowerLoanId) {
+    } else if (currentUserType === "borrower" && (borrowerPhone || currentBorrowerLoanId)) {
       setLocation("/borrower/dashboard");
     }
   }, []);

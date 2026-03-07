@@ -8,10 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Search, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { findLoanByPhone } from "@/lib/api";
+import { findLoansByPhone } from "@/lib/api";
 
 export default function BorrowerLogin() {
-  const { setCurrentBorrowerLoanId } = useStore();
+  const { setBorrowerPhone, setCurrentBorrowerLoanId } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
@@ -26,12 +26,15 @@ export default function BorrowerLogin() {
   const onSubmit = async (data: { phone: string }) => {
     setIsSearching(true);
     try {
-      const loan = await findLoanByPhone(data.phone);
-      if (loan) {
-        setCurrentBorrowerLoanId(loan.id);
-        if (loan.status === "pending") {
-          setLocation(`/invite/${loan.id}`);
+      const loans = await findLoansByPhone(data.phone);
+      if (loans.length > 0) {
+        setBorrowerPhone(data.phone);
+        const pendingLoan = loans.find((l: any) => l.status === "pending");
+        if (loans.length === 1 && pendingLoan) {
+          setCurrentBorrowerLoanId(pendingLoan.id);
+          setLocation(`/invite/${pendingLoan.id}`);
         } else {
+          setCurrentBorrowerLoanId(loans[0].id);
           setLocation("/borrower/dashboard");
         }
       } else {

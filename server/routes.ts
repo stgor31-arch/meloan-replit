@@ -87,9 +87,9 @@ export async function registerRoutes(
   });
 
   app.get("/api/loans/by-phone/:phone", async (req, res) => {
-    const loan = await storage.findLoanByPhone(req.params.phone);
-    if (!loan) return res.status(404).json({ message: "Not found" });
-    res.json(loan);
+    const loans = await storage.findLoansByPhone(req.params.phone);
+    if (loans.length === 0) return res.status(404).json({ message: "Not found" });
+    res.json(loans);
   });
 
   app.post("/api/loans/:id/accept", async (req, res) => {

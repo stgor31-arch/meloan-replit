@@ -51,7 +51,16 @@ export async function getLoan(id: string) {
 export async function findLoanByPhone(phone: string) {
   const res = await fetch(`/api/loans/by-phone/${encodeURIComponent(phone)}`);
   if (!res.ok) return null;
-  return res.json();
+  const data = await res.json();
+  if (Array.isArray(data)) return data[0] || null;
+  return data;
+}
+
+export async function findLoansByPhone(phone: string) {
+  const res = await fetch(`/api/loans/by-phone/${encodeURIComponent(phone)}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [data];
 }
 
 export async function acceptLoan(id: string, data: { borrowerPassport: string; borrowerAddress: string }) {

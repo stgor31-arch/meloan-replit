@@ -271,18 +271,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async findLoanByPhone(phone: string): Promise<(Loan & { schedule: ScheduleItem[] }) | undefined> {
+    const results = await this.findLoansByPhone(phone);
+    return results.length > 0 ? results[0] : undefined;
+  }
+
+  async findLoansByPhone(phone: string): Promise<(Loan & { schedule: ScheduleItem[] })[]> {
     const searchDigits = phone.replace(/\D/g, '');
     const normalizedSearch = searchDigits.length >= 10 ? searchDigits.slice(-10) : searchDigits;
 
     const allLoans = await db.select().from(loans);
-    const matched = allLoans.find(l => {
+    const matched = allLoans.filter(l => {
       const contactDigits = l.borrowerContact.replace(/\D/g, '');
       const normalizedContact = contactDigits.length >= 10 ? contactDigits.slice(-10) : contactDigits;
       return normalizedContact === normalizedSearch;
     });
 
-    if (!matched) return undefined;
-    return this.getLoan(matched.id);
+    const results: (Loan & { schedule: ScheduleItem[] })[] = [];
+    for (const loan of matched) {
+      const full = await this.getLoan(loan.id);
+      if (full) results.push(full);
+    }
+    return results;
   }
 
   async updateLoanStatus(id: string, status: string, data?: Partial<Loan>): Promise<Loan | undefined> {

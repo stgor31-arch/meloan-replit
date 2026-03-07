@@ -16,7 +16,8 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `payment_requests` - Payment confirmation requests (loanId, amount, status, timestamp)
 
 ## Key Features
-- Phone-based loan lookup (last 10 digits normalization)
+- Phone-based loan lookup (last 10 digits normalization); returns ALL loans for a phone number
+- Borrower multi-loan dashboard: list view with summary card, detail view per loan
 - Server-side annuity calculation: `PMT = (P * r) / (1 - (1+r)^-n)`
 - Principal/interest breakdown per schedule item (amortization table)
 - Bank-style early/overpayment: interest accrued from last payment date, remaining schedule recalculated
@@ -51,4 +52,5 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 
 ## Custom Assets
 - Logo: `client/public/logo.png`
-- Storage key: `meloan-storage-v8`
+- Storage key: `meloan-storage-v9`
+- Store fields: `lenderProfileId`, `currentUserType`, `currentBorrowerLoanId`, `borrowerPhone`
