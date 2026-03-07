@@ -119,14 +119,12 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
 
 function NavItem({ href, icon: Icon, label, active }: { href: string; icon: any; label: string; active: boolean }) {
   return (
-    <Link href={href}>
-      <a className={cn(
+    <Link href={href} className={cn(
         "flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200",
         active ? "text-primary bg-primary/5" : "text-muted-foreground hover:bg-gray-50"
       )}>
         <Icon className={cn("w-6 h-6 mb-1", active ? "stroke-[2.5px]" : "stroke-[2px]")} />
         <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
-      </a>
     </Link>
   );
 }
