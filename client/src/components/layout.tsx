@@ -41,11 +41,14 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
             {location === "/" ? (
               <div className="flex items-center gap-3">
                   <img 
-                      src="/logo.png" 
+                      src="/logo-shield.png" 
                       alt="Meloan" 
-                      className="h-10 w-auto object-contain"
+                      className="h-12 w-auto object-contain"
                   />
-                  <span className="text-3xl font-display font-bold text-gray-900 tracking-tight">Meloan</span>
+                  <div className="flex flex-col">
+                      <span className="text-3xl font-display font-bold tracking-tight" style={{ color: "#3B9FD9" }}>Meloan</span>
+                      <span className="text-xs font-medium tracking-wide -mt-1" style={{ color: "#6BB8E0" }}>simple agreements</span>
+                  </div>
               </div>
             ) : (
               <h1 className="font-display font-bold text-lg text-gray-900">{title}</h1>
