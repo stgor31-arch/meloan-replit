@@ -12,6 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getLoans, getMyProfile } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { subscribePush, isPushSupported, isPushGranted } from "@/lib/pushNotifications";
+import { Bell } from "lucide-react";
 
 export default function MasterDashboard() {
   const [, setLocation] = useLocation();
@@ -25,6 +27,21 @@ export default function MasterDashboard() {
       window.location.href = "/api/login";
     }
   }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && isPushSupported() && isPushGranted()) {
+      subscribePush("lender").catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  const handleEnablePush = async () => {
+    const ok = await subscribePush("lender");
+    if (ok) {
+      toast({ title: "Уведомления включены", description: "Вы будете получать push-уведомления о платежах" });
+    } else {
+      toast({ title: "Не удалось включить уведомления", description: "Проверьте разрешения браузера", variant: "destructive" });
+    }
+  };
 
   const { data: lenderProfile } = useQuery({
     queryKey: ["/api/my-profile"],
@@ -85,6 +102,20 @@ export default function MasterDashboard() {
             >
               <LogOut className="w-4 h-4 text-muted-foreground" />
             </Button>
+          </div>
+        )}
+
+        {isPushSupported() && !isPushGranted() && (
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl p-3 flex items-center justify-between text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform"
+            onClick={handleEnablePush}
+            data-testid="button-enable-push"
+          >
+            <div className="flex items-center gap-3">
+              <Bell className="w-5 h-5" />
+              <span className="font-bold text-sm">Включить уведомления о платежах</span>
+            </div>
+            <ChevronRight className="w-5 h-5 opacity-70" />
           </div>
         )}
 

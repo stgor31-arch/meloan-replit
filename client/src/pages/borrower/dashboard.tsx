@@ -3,8 +3,8 @@ import { useStore, translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wallet, Calendar, CheckCircle2, Star, PartyPopper, Loader2, ChevronLeft, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { Wallet, Calendar, CheckCircle2, Star, PartyPopper, Loader2, ChevronLeft, ArrowRight, Bell, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { getLoan, createPaymentRequest, rateLoan, findLoansByPhone } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { subscribePush, isPushSupported, isPushGranted } from "@/lib/pushNotifications";
 
 function LoanCard({ loan, onSelect }: { loan: any; onSelect: () => void }) {
   const statusColors: Record<string, string> = {
@@ -284,7 +285,23 @@ function LoanDetail({ loan, onBack }: { loan: any; onBack: () => void }) {
 export default function BorrowerDashboard() {
   const { borrowerPhone, currentBorrowerLoanId, setCurrentBorrowerLoanId } = useStore();
   const t = translations;
+  const { toast } = useToast();
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(currentBorrowerLoanId);
+
+  useEffect(() => {
+    if (borrowerPhone && isPushSupported() && isPushGranted()) {
+      subscribePush("borrower", borrowerPhone).catch(() => {});
+    }
+  }, [borrowerPhone]);
+
+  const handleEnablePush = async () => {
+    const ok = await subscribePush("borrower", borrowerPhone || undefined);
+    if (ok) {
+      toast({ title: "Уведомления включены", description: "Вы будете получать напоминания о платежах" });
+    } else {
+      toast({ title: "Не удалось включить", description: "Проверьте разрешения браузера", variant: "destructive" });
+    }
+  };
 
   const { data: allLoans = [], isLoading } = useQuery({
     queryKey: ["/api/loans/by-phone", borrowerPhone],
@@ -359,6 +376,20 @@ export default function BorrowerDashboard() {
   return (
     <MobileLayout title={t.loans}>
       <div className="space-y-6 pb-10">
+        {isPushSupported() && !isPushGranted() && (
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl p-3 flex items-center justify-between text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform"
+            onClick={handleEnablePush}
+            data-testid="button-enable-push-borrower"
+          >
+            <div className="flex items-center gap-3">
+              <Bell className="w-5 h-5" />
+              <span className="font-bold text-sm">Включить напоминания о платежах</span>
+            </div>
+            <ChevronRight className="w-5 h-5 opacity-70" />
+          </div>
+        )}
+
         <Card className="bg-primary text-white border-none shadow-xl shadow-primary/30 rounded-3xl overflow-hidden relative">
           <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
           <CardContent className="p-6">

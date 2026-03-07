@@ -17,6 +17,7 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `loans` - Loan records with calculated fields (monthlyPayment, totalRepayment, remainingAmount)
 - `schedule_items` - Payment schedule items per loan (date, amount, principalPart, interestPart, remainingAfter, status, paidDate, paidAmount)
 - `payment_requests` - Payment confirmation requests (loanId, amount, status, timestamp)
+- `push_subscriptions` - Web Push subscriptions (endpoint, p256dh, auth, type lender/borrower, userId, phone)
 
 ## Key Features
 - Google/GitHub/Apple/email authentication via Replit Auth for Lender role
@@ -31,7 +32,9 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - UI tooltips on key action buttons for first-time users
 - Tiered monetization UI (Free/Expert/PRO)
 - Interactive stories carousel on welcome page
-- PWA support (manifest.json, icons)
+- PWA support (manifest.json, icons, service worker)
+- Push notifications: day-before-payment reminders, payment request to lender, payment confirmation to borrower
+- PWA installation story with step-by-step instructions for iOS/Android
 
 ## API Endpoints
 - `GET /api/auth/user` - Get current authenticated user (protected)
@@ -50,6 +53,9 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `POST /api/payment-requests` - Create payment request
 - `GET /api/payment-requests/:loanId` - Get requests for loan
 - `POST /api/payment-requests/:id/confirm` - Confirm payment with recalculation (protected)
+- `GET /api/vapid-public-key` - Get VAPID public key for push subscriptions
+- `POST /api/push/subscribe` - Subscribe to push notifications
+- `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 
 ## Project Structure
 - `shared/schema.ts` - Drizzle schema + Zod validation + re-exports auth models
@@ -62,7 +68,10 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `client/src/lib/auth-utils.ts` - Auth utility functions
 - `client/src/lib/store.ts` - Zustand (borrower session context only) + translations
 - `client/src/lib/api.ts` - API client functions
+- `client/src/lib/pushNotifications.ts` - Push notification subscription utilities
 - `client/src/pages/` - React pages (master/*, borrower/*)
+- `client/public/sw.js` - Service worker for push notifications
+- `server/pushNotifications.ts` - Server-side push notification sending + scheduled reminders
 
 ## Custom Assets
 - Logo: `client/public/logo.png`

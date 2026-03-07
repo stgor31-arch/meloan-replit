@@ -2,7 +2,7 @@ import { MobileLayout } from "@/components/layout";
 import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info, X, Heart, MessageCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info, X, Heart, MessageCircle, Loader2, Smartphone, Download } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -51,6 +51,18 @@ const STORIES = [
             { title: "История выплат", text: "Все платежи фиксируются в системе в режиме реального времени." },
             { title: "Честный расчет", text: "Использование стандартных формул аннуитета." },
             { title: "Уведомления", text: "Вы всегда будете знать о предстоящих и совершенных платежах." }
+        ]
+    },
+    { 
+        id: 5, 
+        title: "Установить", 
+        icon: <Download className="w-6 h-6" />, 
+        color: "bg-teal-500",
+        screens: [
+            { title: "Сохраните на экран", text: "Meloan работает как полноценное приложение прямо с экрана вашего смартфона — без скачивания из App Store или Google Play." },
+            { title: "iPhone (Safari)", text: "1. Откройте Meloan в Safari\n2. Нажмите кнопку «Поделиться» (квадрат со стрелкой вверх)\n3. Прокрутите вниз и выберите «На экран Домой»\n4. Нажмите «Добавить»" },
+            { title: "Android (Chrome)", text: "1. Откройте Meloan в Chrome\n2. Нажмите три точки (меню) в правом верхнем углу\n3. Выберите «Добавить на главный экран» или «Установить приложение»\n4. Подтвердите установку" },
+            { title: "Готово!", text: "Теперь Meloan всегда под рукой на главном экране. Вы будете получать push-уведомления о платежах и подтверждениях." }
         ]
     }
 ];
@@ -238,7 +250,7 @@ export default function Welcome() {
                             <h2 className="text-4xl font-display font-bold leading-tight">
                                 {selectedStory.screens[currentScreen].title}
                             </h2>
-                            <p className="text-xl text-muted-foreground leading-relaxed">
+                            <p className="text-xl text-muted-foreground leading-relaxed whitespace-pre-line text-left">
                                 {selectedStory.screens[currentScreen].text}
                             </p>
                         </motion.div>

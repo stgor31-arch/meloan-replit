@@ -2,8 +2,11 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertLenderProfileSchema } from "@shared/schema";
+import { insertLenderProfileSchema, pushSubscriptions } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { notifyLenderPaymentRequest, notifyBorrowerPaymentConfirmed, startPaymentReminders } from "./pushNotifications";
 
 const createLoanBodySchema = z.object({
   lenderProfileId: z.string().min(1),
@@ -32,6 +35,16 @@ const paymentRequestBodySchema = z.object({
   timestamp: z.string().min(1),
 });
 
+const pushSubscribeSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  type: z.enum(["lender", "borrower"]),
+  phone: z.string().optional(),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -39,6 +52,92 @@ export async function registerRoutes(
 
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  startPaymentReminders();
+
+  app.get("/api/vapid-public-key", (_req, res) => {
+    res.json({ key: process.env.VAPID_PUBLIC_KEY || "" });
+  });
+
+  app.post("/api/push/subscribe", async (req: any, res) => {
+    try {
+      const parsed = pushSubscribeSchema.parse(req.body);
+
+      if (parsed.type === "lender") {
+        if (!req.isAuthenticated || !req.isAuthenticated()) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        const userId = req.user.claims.sub;
+        await db.insert(pushSubscriptions).values({
+          endpoint: parsed.endpoint,
+          p256dh: parsed.keys.p256dh,
+          auth: parsed.keys.auth,
+          type: "lender",
+          userId: userId,
+          phone: null,
+        }).onConflictDoUpdate({
+          target: pushSubscriptions.endpoint,
+          set: {
+            p256dh: parsed.keys.p256dh,
+            auth: parsed.keys.auth,
+            type: "lender",
+            userId: userId,
+          },
+        });
+      } else {
+        if (!parsed.phone) {
+          return res.status(400).json({ message: "Phone required for borrower subscription" });
+        }
+        const phoneDigits = parsed.phone.replace(/\D/g, "");
+        const normalizedPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
+        const matchingLoans = await storage.findLoansByPhone(parsed.phone);
+        if (matchingLoans.length === 0) {
+          return res.status(400).json({ message: "No loans found for this phone" });
+        }
+        await db.insert(pushSubscriptions).values({
+          endpoint: parsed.endpoint,
+          p256dh: parsed.keys.p256dh,
+          auth: parsed.keys.auth,
+          type: "borrower",
+          userId: null,
+          phone: normalizedPhone,
+        }).onConflictDoUpdate({
+          target: pushSubscriptions.endpoint,
+          set: {
+            p256dh: parsed.keys.p256dh,
+            auth: parsed.keys.auth,
+            type: "borrower",
+            phone: normalizedPhone,
+          },
+        });
+      }
+
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/push/unsubscribe", async (req: any, res) => {
+    try {
+      const { endpoint } = req.body;
+      if (!endpoint) return res.json({ success: true });
+
+      const [existing] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+      if (existing) {
+        if (existing.type === "lender" && req.isAuthenticated && req.isAuthenticated()) {
+          if (existing.userId === req.user.claims.sub) {
+            await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+          }
+        } else if (existing.type === "borrower") {
+          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+        }
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
 
   app.get("/api/my-profile", isAuthenticated, async (req: any, res) => {
     try {
@@ -154,6 +253,9 @@ export async function registerRoutes(
     try {
       const parsed = paymentRequestBodySchema.parse(req.body);
       const request = await storage.createPaymentRequest(parsed);
+      notifyLenderPaymentRequest(parsed.loanId, parsed.amount).catch(err =>
+        console.error("Push notify lender error:", err)
+      );
       res.json(request);
     } catch (e: any) {
       res.status(400).json({ message: e.message });
@@ -177,6 +279,11 @@ export async function registerRoutes(
       if (result.loan.lenderProfileId !== profile.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
+
+      notifyBorrowerPaymentConfirmed(result.loan.id, result.request.amount).catch(err =>
+        console.error("Push notify borrower error:", err)
+      );
+
       res.json(result);
     } catch (e: any) {
       res.status(400).json({ message: e.message });

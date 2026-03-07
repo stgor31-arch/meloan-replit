@@ -80,4 +80,18 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 
+export const pushSubscriptionTypeEnum = pgEnum("push_sub_type", ["lender", "borrower"]);
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  type: pushSubscriptionTypeEnum("type").notNull(),
+  userId: varchar("user_id"),
+  phone: text("phone"),
+});
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+
 export * from "./models/auth";

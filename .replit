@@ -46,3 +46,9 @@ waitForPort = 5000
 [agent]
 mockupState = "FULLSTACK"
 integrations = ["javascript_log_in_with_replit:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BD3MMVONxmTtMhYOG1-Uu-i5xEEtmskSwE9aQpOaoVDuBtKc4bLyCdzjR_4XXhirpMyk6slnDTVVE5KifxJNjSk"
+VAPID_PRIVATE_KEY = "Ups3ODWt9rcAovZ4OOMi_Yq2ISk6gxlGjAZGMzDg3L8"
