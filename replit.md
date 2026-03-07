@@ -69,6 +69,7 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `client/src/lib/store.ts` - Zustand (borrower session context only) + translations
 - `client/src/lib/api.ts` - API client functions
 - `client/src/lib/pushNotifications.ts` - Push notification subscription utilities
+- `client/src/lib/receiptGenerator.ts` - Legal receipt text/HTML generation + download
 - `client/src/pages/` - React pages (master/*, borrower/*)
 - `client/public/sw.js` - Service worker for push notifications
 - `server/pushNotifications.ts` - Server-side push notification sending + scheduled reminders

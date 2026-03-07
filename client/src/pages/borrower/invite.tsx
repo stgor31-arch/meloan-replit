@@ -10,11 +10,12 @@ import { useLocation, useRoute } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, ChevronDown, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { getLoan, acceptLoan, getLenderProfile } from "@/lib/api";
+import { generateReceiptText, downloadReceiptAsHTML } from "@/lib/receiptGenerator";
 
 export default function BorrowerInvite() {
   const [, params] = useRoute("/invite/:id");
@@ -27,6 +28,7 @@ export default function BorrowerInvite() {
   const [step, setStep] = useState<1 | 2>(1);
   const [confirmedTerms, setConfirmedTerms] = useState(false);
   const [signedReceipt, setSignedReceipt] = useState(false);
+  const [receiptExpanded, setReceiptExpanded] = useState(false);
 
   const { data: loan, isLoading } = useQuery({
     queryKey: ["/api/loans", loanId],
@@ -47,6 +49,8 @@ export default function BorrowerInvite() {
         address: ""
     }
   });
+
+  const watchedValues = form.watch();
 
   useEffect(() => {
     if (loan) {
@@ -107,6 +111,26 @@ export default function BorrowerInvite() {
       borrowerAddress: data.address,
     });
   };
+
+  const receiptData = {
+    lenderName: lenderProfile?.name || "",
+    lenderPassport: lenderProfile?.passport || "",
+    lenderAddress: lenderProfile?.address || "",
+    lenderPhone: lenderProfile?.phone || "",
+    borrowerName: watchedValues.borrowerName || "",
+    borrowerPassport: watchedValues.passport || "",
+    borrowerAddress: watchedValues.address || "",
+    borrowerPhone: loan.borrowerContact || "",
+    amount: loan.amount,
+    ratePercent: Number(loan.ratePercent),
+    termMonths: loan.termMonths,
+    monthlyPayment: loan.monthlyPayment,
+    totalRepayment: loan.totalRepayment,
+    startDate: loan.startDate,
+    frequency: loan.frequency || "monthly",
+  };
+
+  const receiptText = generateReceiptText(receiptData);
 
   return (
     <MobileLayout>
@@ -228,6 +252,54 @@ export default function BorrowerInvite() {
                         <div className="space-y-2">
                             <Label>{t.address}</Label>
                             <Input data-testid="input-borrower-address" {...form.register("address", { required: true })} className="rounded-xl h-12" />
+                        </div>
+
+                        <div className="mt-6 border border-stone-300 rounded-2xl overflow-hidden bg-stone-50">
+                            <button
+                                type="button"
+                                onClick={() => setReceiptExpanded(!receiptExpanded)}
+                                className="w-full flex items-center justify-between p-4 hover:bg-stone-100 transition-colors"
+                                data-testid="button-toggle-receipt"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-stone-600" />
+                                    <span className="text-sm font-semibold text-stone-700">Полный текст расписки</span>
+                                </div>
+                                <ChevronDown className={cn("w-5 h-5 text-stone-500 transition-transform duration-200", receiptExpanded && "rotate-180")} />
+                            </button>
+
+                            <AnimatePresence>
+                                {receiptExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="border-t border-stone-300">
+                                            <div className="p-5 bg-white mx-3 my-3 border border-stone-200 rounded-lg shadow-inner">
+                                                <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-stone-800" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
+                                                    {receiptText}
+                                                </pre>
+                                            </div>
+
+                                            <div className="px-4 pb-4">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => downloadReceiptAsHTML(receiptData)}
+                                                    className="w-full rounded-xl h-11 gap-2 text-stone-700 border-stone-300 hover:bg-stone-100"
+                                                    data-testid="button-download-receipt"
+                                                >
+                                                    <Download className="w-4 h-4" />
+                                                    Скачать расписку
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         <div className="flex items-start gap-3 p-4 mt-6 bg-white rounded-2xl border border-border">
