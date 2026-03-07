@@ -1,34 +1,41 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations } from "@/lib/store";
+import { translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles, Loader2 } from "lucide-react";
+import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles, Loader2, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { getLoans, getLenderProfile } from "@/lib/api";
+import { getLoans, getMyProfile } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function MasterDashboard() {
-  const { lenderProfileId } = useStore();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const t = translations;
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      window.location.href = "/api/login";
+    }
+  }, [authLoading, isAuthenticated]);
 
   const { data: lenderProfile } = useQuery({
-    queryKey: ["/api/lender-profile", lenderProfileId],
-    queryFn: () => lenderProfileId ? getLenderProfile(lenderProfileId) : null,
-    enabled: !!lenderProfileId,
+    queryKey: ["/api/my-profile"],
+    queryFn: getMyProfile,
+    enabled: isAuthenticated,
   });
 
   const { data: loans = [], isLoading } = useQuery({
-    queryKey: ["/api/loans", lenderProfileId],
-    queryFn: () => lenderProfileId ? getLoans(lenderProfileId) : [],
-    enabled: !!lenderProfileId,
+    queryKey: ["/api/loans"],
+    queryFn: getLoans,
+    enabled: isAuthenticated,
   });
 
   const activeLoans = loans.filter((l: any) => l.status === 'active' || l.status === 'pending');
@@ -46,9 +53,41 @@ export default function MasterDashboard() {
     setLocation("/master/create-loan");
   };
 
+  if (authLoading) {
+    return (
+      <MobileLayout title={t.dashboard}>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    );
+  }
+
   return (
     <MobileLayout title={t.dashboard}>
       <div className="space-y-6 relative">
+        {user && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {user.profileImageUrl && (
+                <img src={user.profileImageUrl} alt="" className="w-8 h-8 rounded-full" />
+              )}
+              <span className="text-sm font-medium text-gray-700">
+                {user.firstName || user.email || 'Пользователь'}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={() => { window.location.href = "/api/logout"; }}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+        )}
+
         <div 
             className="bg-gradient-to-r from-orange-400 to-amber-500 rounded-2xl p-3 flex items-center justify-between text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform"
             onClick={() => setIsDrawerOpen(true)}

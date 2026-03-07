@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations } from "@/lib/store";
+import { translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,19 +10,27 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { createLenderProfile, updateLenderProfile, getLenderProfile } from "@/lib/api";
+import { createLenderProfile, updateLenderProfile, getMyProfile } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
 
 export default function MasterProfile() {
-  const { lenderProfileId, setLenderProfileId } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      window.location.href = "/api/login";
+    }
+  }, [authLoading, isAuthenticated]);
 
   const { data: lenderProfile, isLoading } = useQuery({
-    queryKey: ["/api/lender-profile", lenderProfileId],
-    queryFn: () => lenderProfileId ? getLenderProfile(lenderProfileId) : null,
-    enabled: !!lenderProfileId,
+    queryKey: ["/api/my-profile"],
+    queryFn: getMyProfile,
+    enabled: isAuthenticated,
   });
 
   const form = useForm({
@@ -44,32 +52,31 @@ export default function MasterProfile() {
 
   const createMutation = useMutation({
     mutationFn: createLenderProfile,
-    onSuccess: (data) => {
-      setLenderProfileId(data.id);
-      queryClient.invalidateQueries({ queryKey: ["/api/lender-profile"] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-profile"] });
       toast({ title: "Профиль сохранен", description: "Ваши данные обновлены." });
       setLocation("/master/dashboard");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => updateLenderProfile(lenderProfileId!, data),
+    mutationFn: (data: any) => updateLenderProfile(lenderProfile!.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lender-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-profile"] });
       toast({ title: "Профиль сохранен", description: "Ваши данные обновлены." });
       setLocation("/master/dashboard");
     },
   });
 
   const onSubmit = (data: any) => {
-    if (lenderProfileId) {
+    if (lenderProfile) {
       updateMutation.mutate(data);
     } else {
       createMutation.mutate(data);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <MobileLayout title={t.profile} showBack>
         <div className="flex items-center justify-center h-[50vh]">

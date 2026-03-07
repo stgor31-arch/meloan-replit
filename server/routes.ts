@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertLenderProfileSchema } from "@shared/schema";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 
 const createLoanBodySchema = z.object({
   lenderProfileId: z.string().min(1),
@@ -36,10 +37,29 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  app.post("/api/lender-profile", async (req, res) => {
+  await setupAuth(app);
+  registerAuthRoutes(app);
+
+  app.get("/api/my-profile", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getLenderProfileByUserId(userId);
+      if (!profile) return res.json(null);
+      res.json(profile);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/lender-profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const existing = await storage.getLenderProfileByUserId(userId);
+      if (existing) {
+        return res.status(400).json({ message: "Profile already exists" });
+      }
       const parsed = insertLenderProfileSchema.parse(req.body);
-      const profile = await storage.createLenderProfile(parsed);
+      const profile = await storage.createLenderProfile({ ...parsed, userId });
       res.json(profile);
     } catch (e: any) {
       res.status(400).json({ message: e.message });
@@ -52,20 +72,30 @@ export async function registerRoutes(
     res.json(profile);
   });
 
-  app.put("/api/lender-profile/:id", async (req, res) => {
+  app.put("/api/lender-profile/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getLenderProfile(req.params.id);
+      if (!profile || profile.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
       const parsed = insertLenderProfileSchema.partial().parse(req.body);
-      const profile = await storage.updateLenderProfile(req.params.id, parsed);
-      if (!profile) return res.status(404).json({ message: "Not found" });
-      res.json(profile);
+      const updated = await storage.updateLenderProfile(req.params.id, parsed);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
     } catch (e: any) {
       res.status(400).json({ message: e.message });
     }
   });
 
-  app.post("/api/loans", async (req, res) => {
+  app.post("/api/loans", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const parsed = createLoanBodySchema.parse(req.body);
+      const profile = await storage.getLenderProfile(parsed.lenderProfileId);
+      if (!profile || profile.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
       const loan = await storage.createLoan(parsed);
       res.json(loan);
     } catch (e: any) {
@@ -73,10 +103,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/loans", async (req, res) => {
-    const lenderProfileId = req.query.lenderProfileId as string;
-    if (!lenderProfileId) return res.status(400).json({ message: "lenderProfileId required" });
-    const result = await storage.getLoansByLender(lenderProfileId);
+  app.get("/api/loans", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const profile = await storage.getLenderProfileByUserId(userId);
+    if (!profile) return res.json([]);
+    const result = await storage.getLoansByLender(profile.id);
     res.json(result);
   });
 
@@ -134,10 +165,18 @@ export async function registerRoutes(
     res.json(requests);
   });
 
-  app.post("/api/payment-requests/:id/confirm", async (req, res) => {
+  app.post("/api/payment-requests/:id/confirm", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getLenderProfileByUserId(userId);
+      if (!profile) return res.status(403).json({ message: "Forbidden" });
+
       const result = await storage.confirmPayment(req.params.id);
       if (!result) return res.status(404).json({ message: "Not found" });
+
+      if (result.loan.lenderProfileId !== profile.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
       res.json(result);
     } catch (e: any) {
       res.status(400).json({ message: e.message });

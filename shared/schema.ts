@@ -10,6 +10,7 @@ export const paymentRequestStatusEnum = pgEnum("payment_request_status", ["pendi
 
 export const lenderProfiles = pgTable("lender_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
   name: text("name").notNull(),
   passport: text("passport").notNull(),
   address: text("address").notNull(),
@@ -60,7 +61,7 @@ export const paymentRequests = pgTable("payment_requests", {
   timestamp: text("timestamp").notNull(),
 });
 
-export const insertLenderProfileSchema = createInsertSchema(lenderProfiles).omit({ id: true });
+export const insertLenderProfileSchema = createInsertSchema(lenderProfiles).omit({ id: true, userId: true });
 export type InsertLenderProfile = z.infer<typeof insertLenderProfileSchema>;
 export type LenderProfile = typeof lenderProfiles.$inferSelect;
 
@@ -79,16 +80,4 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export * from "./models/auth";

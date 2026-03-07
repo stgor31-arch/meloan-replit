@@ -2,12 +2,12 @@ import { MobileLayout } from "@/components/layout";
 import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info, X, Heart, MessageCircle } from "lucide-react";
+import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info, X, Heart, MessageCircle, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
-// Mock stories for the carousel
 const STORIES = [
     { 
         id: 1, 
@@ -15,7 +15,7 @@ const STORIES = [
         icon: <Info className="w-6 h-6" />, 
         color: "bg-blue-500",
         screens: [
-            { title: "Простая регистрация", text: "Введите свой номер телефона и получите доступ к предложениям." },
+            { title: "Простая регистрация", text: "Войдите через Google и получите доступ к предложениям." },
             { title: "Выбор условий", text: "Сравнивайте процентные ставки и сроки займов." },
             { title: "Быстрое получение", text: "Подпишите электронную расписку и получите средства." }
         ]
@@ -57,21 +57,24 @@ const STORIES = [
 
 export default function Welcome() {
   const [, setLocation] = useLocation();
-  const { setCurrentUser, currentUserType, lenderProfileId, currentBorrowerLoanId, borrowerPhone } = useStore();
+  const { setCurrentUser, currentUserType, borrowerPhone, currentBorrowerLoanId } = useStore();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const t = translations;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedStory, setSelectedStory] = useState<typeof STORIES[0] | null>(null);
   const [currentScreen, setCurrentScreen] = useState(0);
 
   useEffect(() => {
-    if (currentUserType === "master" && lenderProfileId) {
-      setLocation("/master/dashboard");
-    } else if (currentUserType === "borrower" && (borrowerPhone || currentBorrowerLoanId)) {
+    if (currentUserType === "borrower" && (borrowerPhone || currentBorrowerLoanId)) {
       setLocation("/borrower/dashboard");
     }
   }, []);
 
   const handleLender = () => {
+    if (!isAuthenticated) {
+      window.location.href = "/api/login";
+      return;
+    }
     setCurrentUser("master");
     setLocation("/master/dashboard");
   };
@@ -93,7 +96,31 @@ export default function Welcome() {
   return (
     <MobileLayout title="">
       <div className="flex flex-col space-y-8 pb-10">
-        {/* Stories Carousel */}
+        {isAuthenticated && user && (
+          <div className="px-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {user.profileImageUrl && (
+                <img src={user.profileImageUrl} alt="" className="w-10 h-10 rounded-full" />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.email || 'Пользователь'}
+                </p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={() => { window.location.href = "/api/logout"; }}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-5 h-5 text-muted-foreground" />
+            </Button>
+          </div>
+        )}
+
         <div className="relative pt-4">
             <div 
                 ref={scrollRef}
@@ -115,7 +142,6 @@ export default function Welcome() {
             </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="px-4 space-y-4">
             <div className="text-center space-y-1 mb-6">
                 <h2 className="text-2xl font-display font-bold text-gray-900">Добро пожаловать</h2>
@@ -125,14 +151,18 @@ export default function Welcome() {
             <Button 
                 onClick={handleLender}
                 className="w-full h-20 rounded-3xl flex items-center justify-between px-6 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform group"
+                data-testid="button-lender"
+                disabled={isLoading}
             >
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                        <ShieldCheck className="w-6 h-6" />
+                        {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <ShieldCheck className="w-6 h-6" />}
                     </div>
                     <div className="text-left">
                         <span className="block text-xl font-semibold leading-tight">{t.lender}</span>
-                        <span className="block text-[11px] text-white/70 mt-1">Создайте и управляйте займами</span>
+                        <span className="block text-[11px] text-white/70 mt-1">
+                          {isAuthenticated ? "Создайте и управляйте займами" : "Войдите, чтобы создавать займы"}
+                        </span>
                     </div>
                 </div>
                 <ChevronRight className="w-6 h-6 opacity-50 group-hover:translate-x-1 transition-transform" />
@@ -142,6 +172,7 @@ export default function Welcome() {
                 variant="outline"
                 onClick={handleBorrower}
                 className="w-full h-20 rounded-3xl flex items-center justify-between px-6 border-2 hover:bg-gray-50 hover:scale-[1.02] transition-transform group"
+                data-testid="button-borrower"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
@@ -163,7 +194,6 @@ export default function Welcome() {
         </div>
       </div>
 
-      {/* Story Modal */}
       <AnimatePresence>
         {selectedStory && (
             <motion.div 
@@ -172,7 +202,6 @@ export default function Welcome() {
                 exit={{ opacity: 0, scale: 0.9, y: 100 }}
                 className="fixed inset-0 z-[100] bg-white flex flex-col"
             >
-                {/* Header */}
                 <div className="p-6 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white", selectedStory.color)}>
@@ -185,7 +214,6 @@ export default function Welcome() {
                     </button>
                 </div>
 
-                {/* Progress Bars */}
                 <div className="px-6 flex gap-1 h-1">
                     {selectedStory.screens.map((_, i) => (
                         <div key={i} className="flex-1 bg-gray-100 rounded-full overflow-hidden">
@@ -198,7 +226,6 @@ export default function Welcome() {
                     ))}
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 relative overflow-hidden flex">
                     <AnimatePresence mode="wait">
                         <motion.div 
@@ -217,7 +244,6 @@ export default function Welcome() {
                         </motion.div>
                     </AnimatePresence>
 
-                    {/* Touch Areas for Navigation */}
                     <div className="absolute inset-0 flex">
                         <div 
                             className="w-1/3 h-full cursor-pointer" 
@@ -236,7 +262,6 @@ export default function Welcome() {
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="p-8 border-t flex justify-between items-center">
                     <div className="flex gap-6">
                         <button className="flex items-center gap-2 text-muted-foreground hover:text-red-500 transition-colors">

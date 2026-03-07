@@ -1,5 +1,14 @@
 import { apiRequest } from "./queryClient";
 
+export async function getMyProfile() {
+  const res = await fetch("/api/my-profile", { credentials: "include" });
+  if (!res.ok) {
+    if (res.status === 401) return null;
+    throw new Error("Failed to fetch profile");
+  }
+  return res.json();
+}
+
 export async function createLenderProfile(data: {
   name: string;
   passport: string;
@@ -36,8 +45,8 @@ export async function createLoan(data: {
   return res.json();
 }
 
-export async function getLoans(lenderProfileId: string) {
-  const res = await fetch(`/api/loans?lenderProfileId=${lenderProfileId}`);
+export async function getLoans() {
+  const res = await fetch("/api/loans", { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch loans");
   return res.json();
 }

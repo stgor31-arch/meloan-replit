@@ -10,8 +10,9 @@ import { eq, desc, asc } from "drizzle-orm";
 import { addDays, addWeeks, addMonths, format, parseISO, differenceInDays } from "date-fns";
 
 export interface IStorage {
-  createLenderProfile(profile: InsertLenderProfile): Promise<LenderProfile>;
+  createLenderProfile(profile: InsertLenderProfile & { userId: string }): Promise<LenderProfile>;
   getLenderProfile(id: string): Promise<LenderProfile | undefined>;
+  getLenderProfileByUserId(userId: string): Promise<LenderProfile | undefined>;
   updateLenderProfile(id: string, profile: Partial<InsertLenderProfile>): Promise<LenderProfile | undefined>;
 
   createLoan(data: {
@@ -182,13 +183,18 @@ function rebuildScheduleFromDate(
 }
 
 export class DatabaseStorage implements IStorage {
-  async createLenderProfile(profile: InsertLenderProfile): Promise<LenderProfile> {
+  async createLenderProfile(profile: InsertLenderProfile & { userId: string }): Promise<LenderProfile> {
     const [result] = await db.insert(lenderProfiles).values(profile).returning();
     return result;
   }
 
   async getLenderProfile(id: string): Promise<LenderProfile | undefined> {
     const [result] = await db.select().from(lenderProfiles).where(eq(lenderProfiles.id, id));
+    return result;
+  }
+
+  async getLenderProfileByUserId(userId: string): Promise<LenderProfile | undefined> {
+    const [result] = await db.select().from(lenderProfiles).where(eq(lenderProfiles.userId, userId));
     return result;
   }
 

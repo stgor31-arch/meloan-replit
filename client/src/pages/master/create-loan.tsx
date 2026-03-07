@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout";
-import { useStore, translations } from "@/lib/store";
+import { translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,20 +13,28 @@ import { AlertCircle, Loader2, Send, MessageCircleMore, Copy, Check, X } from "l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { createLoan, getLenderProfile } from "@/lib/api";
+import { createLoan, getMyProfile } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
 
 export default function MasterCreateLoan() {
-  const { lenderProfileId } = useStore();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const t = translations;
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      window.location.href = "/api/login";
+    }
+  }, [authLoading, isAuthenticated]);
 
   const { data: lenderProfile } = useQuery({
-    queryKey: ["/api/lender-profile", lenderProfileId],
-    queryFn: () => lenderProfileId ? getLenderProfile(lenderProfileId) : null,
-    enabled: !!lenderProfileId,
+    queryKey: ["/api/my-profile"],
+    queryFn: getMyProfile,
+    enabled: isAuthenticated,
   });
 
   const [amount, setAmount] = useState(100000);
@@ -57,7 +65,7 @@ export default function MasterCreateLoan() {
 
   const onSubmit = (data: any) => {
     mutation.mutate({
-      lenderProfileId: lenderProfileId!,
+      lenderProfileId: lenderProfile!.id,
       amount,
       termMonths: months,
       ratePercent: rate,
