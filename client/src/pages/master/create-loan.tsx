@@ -9,11 +9,13 @@ import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Send, MessageCircleMore, Copy, Check, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { createLoan, getLenderProfile } from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function MasterCreateLoan() {
   const { lenderProfileId } = useStore();
@@ -30,6 +32,8 @@ export default function MasterCreateLoan() {
   const [amount, setAmount] = useState(100000);
   const [months, setMonths] = useState(12);
   const [rate, setRate] = useState(20);
+  const [createdLoanId, setCreatedLoanId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -42,10 +46,9 @@ export default function MasterCreateLoan() {
 
   const mutation = useMutation({
     mutationFn: createLoan,
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
-      toast({ title: "Заём создан", description: "Ссылка-приглашение готова." });
-      setLocation("/master/dashboard");
+      setCreatedLoanId(data.id);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -60,6 +63,24 @@ export default function MasterCreateLoan() {
       ratePercent: rate,
       ...data,
     });
+  };
+
+  const inviteLink = createdLoanId ? `${window.location.origin}/invite/${createdLoanId}` : "";
+  const shareText = `Приглашение в Meloan: заём на ${amount.toLocaleString()} ₽. Перейдите по ссылке для подтверждения:`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    toast({ title: "Ссылка скопирована" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareViaTelegram = () => {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`, '_blank');
+  };
+
+  const shareViaWhatsApp = () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + inviteLink)}`, '_blank');
   };
 
   if (!lenderProfile) {
@@ -79,6 +100,57 @@ export default function MasterCreateLoan() {
 
   return (
     <MobileLayout title={t.new_loan} showBack>
+        <AnimatePresence>
+          {createdLoanId && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-[80] backdrop-blur-sm"
+                onClick={() => setLocation("/master/dashboard")}
+              />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white z-[90] rounded-t-[2rem] shadow-2xl p-6 space-y-5"
+              >
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold">Заём создан!</h3>
+                  <Button variant="ghost" size="icon" onClick={() => setLocation("/master/dashboard")} data-testid="button-close-share">
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">Отправьте ссылку-приглашение заемщику:</p>
+
+                <div className="bg-gray-50 rounded-xl p-3 text-xs text-muted-foreground break-all font-mono">
+                  {inviteLink}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <Button variant="outline" className="rounded-xl gap-2 h-12" onClick={handleCopyLink} data-testid="button-copy-created-link">
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? "Скопировано" : "Скопировать ссылку"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl gap-2 h-12 border-blue-200 text-blue-600" onClick={shareViaTelegram} data-testid="button-share-telegram-create">
+                    <Send className="h-4 w-4" />
+                    Отправить через Telegram
+                  </Button>
+                  <Button variant="outline" className="rounded-xl gap-2 h-12 border-green-200 text-green-600" onClick={shareViaWhatsApp} data-testid="button-share-whatsapp-create">
+                    <MessageCircleMore className="h-4 w-4" />
+                    Отправить через WhatsApp
+                  </Button>
+                </div>
+
+                <Button className="w-full h-12 rounded-xl" onClick={() => setLocation("/master/dashboard")} data-testid="button-go-dashboard">
+                  Перейти к займам
+                </Button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="space-y-6 bg-white rounded-3xl p-2">
                 <div className="space-y-4">
@@ -159,10 +231,15 @@ export default function MasterCreateLoan() {
                 </div>
             </div>
 
-            <Button data-testid="button-create-loan-submit" type="submit" className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-primary/20" disabled={mutation.isPending}>
-                {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                {t.create_and_invite}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button data-testid="button-create-loan-submit" type="submit" className="w-full h-14 text-lg rounded-2xl shadow-xl shadow-primary/20" disabled={mutation.isPending}>
+                    {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    {t.create_and_invite}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Создать заём и получить ссылку для заемщика</TooltipContent>
+            </Tooltip>
         </form>
     </MobileLayout>
   );

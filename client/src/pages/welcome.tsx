@@ -3,7 +3,7 @@ import { useStore, translations } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ShieldCheck, UserCircle2, LogOut, ChevronRight, Info, X, Heart, MessageCircle } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -57,11 +57,19 @@ const STORIES = [
 
 export default function Welcome() {
   const [, setLocation] = useLocation();
-  const { setCurrentUser, currentUserType } = useStore();
+  const { setCurrentUser, currentUserType, lenderProfileId, currentBorrowerLoanId } = useStore();
   const t = translations;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedStory, setSelectedStory] = useState<typeof STORIES[0] | null>(null);
   const [currentScreen, setCurrentScreen] = useState(0);
+
+  useEffect(() => {
+    if (currentUserType === "master" && lenderProfileId) {
+      setLocation("/master/dashboard");
+    } else if (currentUserType === "borrower" && currentBorrowerLoanId) {
+      setLocation("/borrower/dashboard");
+    }
+  }, []);
 
   const handleLender = () => {
     setCurrentUser("master");

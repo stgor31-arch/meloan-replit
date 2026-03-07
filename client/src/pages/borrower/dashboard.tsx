@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { getLoan, createPaymentRequest, rateLoan } from "@/lib/api";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function BorrowerDashboard() {
   const { currentBorrowerLoanId } = useStore();
@@ -82,11 +83,13 @@ export default function BorrowerDashboard() {
     paymentMutation.mutate(parseFloat(paymentAmount));
   };
 
+  const nextScheduleAmount = (myLoan.schedule || []).find((s: any) => s.status === "upcoming")?.amount;
+
   return (
     <MobileLayout title={t.loans}>
       <div className="space-y-6 pb-10">
         {myLoan.status === "closed" && (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-primary/5 border-2 border-primary/20 rounded-3xl p-6 text-center space-y-4 shadow-xl shadow-primary/5"
@@ -96,7 +99,7 @@ export default function BorrowerDashboard() {
                 </div>
                 <h3 className="text-xl font-bold text-primary">{t.loan_closed}</h3>
                 <p className="text-sm text-muted-foreground">{t.congrats_borrower}</p>
-                
+
                 <div className="pt-4 border-t border-primary/10 mt-4">
                     <p className="text-sm font-semibold mb-3">{t.rate_lender}</p>
                     <div className="flex justify-center gap-2">
@@ -109,13 +112,13 @@ export default function BorrowerDashboard() {
                                 onClick={() => rateMutation.mutate(star)}
                                 className="focus:outline-none transition-transform active:scale-90"
                             >
-                                <Star 
+                                <Star
                                     className={cn(
                                         "w-8 h-8",
-                                        (hoverRating || myLoan.lenderRating || 0) >= star 
-                                            ? "fill-primary text-primary" 
+                                        (hoverRating || myLoan.lenderRating || 0) >= star
+                                            ? "fill-primary text-primary"
                                             : "text-gray-300"
-                                    )} 
+                                    )}
                                 />
                             </button>
                         ))}
@@ -138,7 +141,7 @@ export default function BorrowerDashboard() {
                         {myLoan.status === "closed" ? "ЗАКРЫТ" : myLoan.status.toUpperCase()}
                     </Badge>
                 </div>
-                
+
                 <div className="space-y-1">
                     <div className="flex justify-between text-sm text-white/80">
                         <span>Оплачено {(myLoan.schedule || []).filter((s: any) => s.status === 'paid').length} из {(myLoan.schedule || []).length}</span>
@@ -154,24 +157,34 @@ export default function BorrowerDashboard() {
             <Card className="rounded-2xl border-none shadow-md bg-white p-4 space-y-4">
                 <div className="space-y-2">
                     <p className="text-sm font-semibold">{t.payment_amount}</p>
-                    <Input 
+                    <Input
                         data-testid="input-payment-amount"
-                        type="number" 
-                        value={paymentAmount} 
-                        onChange={(e) => setPaymentAmount(e.target.value)} 
-                        placeholder="0.00 ₽"
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        placeholder={nextScheduleAmount ? `Следующий платеж: ${nextScheduleAmount.toLocaleString()} ₽` : "0.00 ₽"}
                         className="h-12 rounded-xl text-lg font-bold"
                     />
+                    {nextScheduleAmount && paymentAmount && parseFloat(paymentAmount) > nextScheduleAmount && (
+                        <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded-lg">
+                            Сумма больше планового платежа — это будет частично-досрочное погашение. График будет пересчитан после подтверждения кредитором.
+                        </p>
+                    )}
                 </div>
-                <Button 
-                    data-testid="button-send-payment"
-                    onClick={handlePayment} 
-                    disabled={!paymentAmount || paymentMutation.isPending}
-                    className="w-full h-12 rounded-xl bg-primary text-white font-bold"
-                >
-                    {paymentMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                    {t.confirm_payment}
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                        data-testid="button-send-payment"
+                        onClick={handlePayment}
+                        disabled={!paymentAmount || paymentMutation.isPending}
+                        className="w-full h-12 rounded-xl bg-primary text-white font-bold"
+                    >
+                        {paymentMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        {t.confirm_payment}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Отправить запрос на подтверждение оплаты кредитору</TooltipContent>
+                </Tooltip>
             </Card>
         )}
 
@@ -182,26 +195,37 @@ export default function BorrowerDashboard() {
             </h3>
             <div className="space-y-3">
                 {(myLoan.schedule || []).map((item: any, i: number) => (
-                    <div key={item.id || i} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border/50 shadow-sm" data-testid={`schedule-item-borrower-${i}`}>
-                        <div className="flex items-center gap-4">
-                            <div className={cn(
-                                "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
-                                item.status === "paid" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                            )}>
-                                {item.status === "paid" ? <CheckCircle2 className="w-5 h-5" /> : i + 1}
+                    <div key={item.id || i} className="p-4 bg-white rounded-2xl border border-border/50 shadow-sm" data-testid={`schedule-item-borrower-${i}`}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
+                                    item.status === "paid" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                                )}>
+                                    {item.status === "paid" ? <CheckCircle2 className="w-5 h-5" /> : i + 1}
+                                </div>
+                                <div>
+                                    <p className="font-semibold">{t.payment_number} #{i + 1}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {item.status === "paid" && item.paidDate
+                                            ? `Оплачено: ${new Date(item.paidDate).toLocaleDateString('ru-RU')}`
+                                            : new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-semibold">{t.payment_number} #{i + 1}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {item.status === "paid" && item.paidDate 
-                                        ? `Оплачено: ${new Date(item.paidDate).toLocaleDateString('ru-RU')}` 
-                                        : new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                </p>
+                            <div className="text-right">
+                                 <p className="font-bold text-lg">{item.amount.toLocaleString()} ₽</p>
                             </div>
                         </div>
-                        <div className="text-right">
-                             <p className="font-medium">{item.amount.toLocaleString()} ₽</p>
+                        <div className="mt-2 pt-2 border-t border-dashed border-gray-100 flex justify-between text-xs text-muted-foreground">
+                            <span>Основной долг: <span className="font-semibold text-gray-700">{(item.principalPart || 0).toLocaleString()} ₽</span></span>
+                            <span>Проценты: <span className="font-semibold text-orange-600">{(item.interestPart || 0).toLocaleString()} ₽</span></span>
                         </div>
+                        {item.remainingAfter !== undefined && item.remainingAfter !== null && (
+                            <div className="mt-1 text-[10px] text-muted-foreground text-right">
+                                Остаток: {item.remainingAfter.toLocaleString()} ₽
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

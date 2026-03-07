@@ -12,15 +12,19 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 ## Database Schema
 - `lender_profiles` - Lender personal data (name, passport, address, payment info, phone)
 - `loans` - Loan records with calculated fields (monthlyPayment, totalRepayment, remainingAmount)
-- `schedule_items` - Payment schedule items per loan (date, amount, status, paidDate, paidAmount)
+- `schedule_items` - Payment schedule items per loan (date, amount, principalPart, interestPart, remainingAfter, status, paidDate, paidAmount)
 - `payment_requests` - Payment confirmation requests (loanId, amount, status, timestamp)
 
 ## Key Features
 - Phone-based loan lookup (last 10 digits normalization)
 - Server-side annuity calculation: `PMT = (P * r) / (1 - (1+r)^-n)`
-- Annuity recalculation after each confirmed payment
+- Principal/interest breakdown per schedule item (amortization table)
+- Bank-style early/overpayment: interest accrued from last payment date, remaining schedule recalculated
 - Automatic loan closure when remainingAmount reaches 0
 - Mutual rating system (1-5 stars) upon closure
+- Auto-redirect returning users (Zustand-persisted session) to their dashboard
+- Share loan invite via Telegram / WhatsApp (after creation + in loan details)
+- UI tooltips on key action buttons for first-time users
 - Tiered monetization UI (Free/Expert/PRO)
 - Interactive stories carousel on welcome page
 

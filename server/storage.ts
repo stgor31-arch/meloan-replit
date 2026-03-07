@@ -1,13 +1,13 @@
 import {
   type LenderProfile, type InsertLenderProfile,
-  type Loan, type InsertLoan,
+  type Loan,
   type ScheduleItem, type InsertScheduleItem,
   type PaymentRequest, type InsertPaymentRequest,
   lenderProfiles, loans, scheduleItems, paymentRequests,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
-import { addDays, addWeeks, addMonths, format, parseISO } from "date-fns";
+import { addDays, addWeeks, addMonths, format, parseISO, differenceInDays } from "date-fns";
 
 export interface IStorage {
   createLenderProfile(profile: InsertLenderProfile): Promise<LenderProfile>;
@@ -36,55 +36,149 @@ export interface IStorage {
   rateLoan(loanId: string, type: "borrower" | "lender", stars: number): Promise<Loan | undefined>;
 }
 
-function calculateSchedule(
-  amount: number,
-  rate: number,
-  term: number,
+function getRatePerPeriod(ratePercent: number, frequency: string): number {
+  if (frequency === "weekly") return ratePercent / 100 / 52;
+  if (frequency === "daily") return ratePercent / 100 / 365;
+  return ratePercent / 100 / 12;
+}
+
+function getPeriodsCount(termMonths: number, frequency: string): number {
+  if (frequency === "weekly") return termMonths * 4;
+  if (frequency === "daily") return termMonths * 30;
+  return termMonths;
+}
+
+function addPeriod(date: Date, frequency: string, periods: number): Date {
+  if (frequency === "monthly") return addMonths(date, periods);
+  if (frequency === "weekly") return addWeeks(date, periods);
+  return addDays(date, periods);
+}
+
+function getDailyRate(ratePercent: number): number {
+  return ratePercent / 100 / 365;
+}
+
+interface ScheduleRow {
+  date: string;
+  amount: number;
+  principalPart: number;
+  interestPart: number;
+  remainingAfter: number;
+}
+
+function buildAmortizationSchedule(
+  principal: number,
+  ratePercent: number,
+  termMonths: number,
   frequency: "once" | "monthly" | "weekly" | "daily",
   startDate: string
-): { schedule: { date: string; amount: number }[]; pmt: number } {
+): { schedule: ScheduleRow[]; pmt: number } {
   const start = parseISO(startDate);
-  const schedule: { date: string; amount: number }[] = [];
-  let pmt = 0;
+  const schedule: ScheduleRow[] = [];
 
   if (frequency === "once") {
-    pmt = amount * (1 + (rate / 100) * (term / 12));
+    const interest = Math.round(principal * (ratePercent / 100) * (termMonths / 12));
+    const total = principal + interest;
     schedule.push({
-      date: format(addMonths(start, term), "yyyy-MM-dd"),
-      amount: Math.round(pmt),
+      date: format(addMonths(start, termMonths), "yyyy-MM-dd"),
+      amount: total,
+      principalPart: principal,
+      interestPart: interest,
+      remainingAfter: 0,
     });
+    return { schedule, pmt: total };
+  }
+
+  const periods = getPeriodsCount(termMonths, frequency);
+  const r = getRatePerPeriod(ratePercent, frequency);
+
+  let pmt: number;
+  if (r > 0) {
+    pmt = (principal * r) / (1 - Math.pow(1 + r, -periods));
   } else {
-    let periods = term;
-    let ratePerPeriod = rate / 100 / 12;
+    pmt = principal / periods;
+  }
+  pmt = Math.round(pmt);
 
-    if (frequency === "weekly") {
-      periods = term * 4;
-      ratePerPeriod = rate / 100 / 52;
-    } else if (frequency === "daily") {
-      periods = term * 30;
-      ratePerPeriod = rate / 100 / 365;
-    }
+  let remaining = principal;
+  for (let i = 1; i <= periods; i++) {
+    const interestPart = Math.round(remaining * r);
+    let principalPart = pmt - interestPart;
 
-    if (ratePerPeriod > 0) {
-      pmt = (amount * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -periods));
-    } else {
-      pmt = amount / periods;
-    }
-
-    for (let i = 1; i <= periods; i++) {
-      let date;
-      if (frequency === "monthly") date = addMonths(start, i);
-      else if (frequency === "weekly") date = addWeeks(start, i);
-      else date = addDays(start, i);
-
+    if (i === periods) {
+      principalPart = remaining;
+      const finalAmount = principalPart + interestPart;
       schedule.push({
-        date: format(date, "yyyy-MM-dd"),
-        amount: Math.round(pmt),
+        date: format(addPeriod(start, frequency, i), "yyyy-MM-dd"),
+        amount: finalAmount,
+        principalPart,
+        interestPart,
+        remainingAfter: 0,
+      });
+    } else {
+      remaining -= principalPart;
+      schedule.push({
+        date: format(addPeriod(start, frequency, i), "yyyy-MM-dd"),
+        amount: pmt,
+        principalPart,
+        interestPart,
+        remainingAfter: Math.max(0, remaining),
       });
     }
   }
 
-  return { schedule, pmt: Math.round(pmt) };
+  return { schedule, pmt };
+}
+
+function rebuildScheduleFromDate(
+  remainingPrincipal: number,
+  ratePercent: number,
+  frequency: "once" | "monthly" | "weekly" | "daily",
+  fromDate: string,
+  periodsLeft: number
+): ScheduleRow[] {
+  if (periodsLeft <= 0 || remainingPrincipal <= 0) return [];
+
+  const start = parseISO(fromDate);
+  const r = getRatePerPeriod(ratePercent, frequency);
+  const schedule: ScheduleRow[] = [];
+
+  let pmt: number;
+  if (r > 0) {
+    pmt = (remainingPrincipal * r) / (1 - Math.pow(1 + r, -periodsLeft));
+  } else {
+    pmt = remainingPrincipal / periodsLeft;
+  }
+  pmt = Math.round(pmt);
+
+  let remaining = remainingPrincipal;
+  for (let i = 1; i <= periodsLeft; i++) {
+    const interestPart = Math.round(remaining * r);
+    let principalPart = pmt - interestPart;
+
+    if (i === periodsLeft) {
+      principalPart = remaining;
+      const finalAmount = principalPart + interestPart;
+      schedule.push({
+        date: format(addPeriod(start, frequency, i), "yyyy-MM-dd"),
+        amount: finalAmount,
+        principalPart,
+        interestPart,
+        remainingAfter: 0,
+      });
+    } else {
+      remaining -= principalPart;
+      schedule.push({
+        date: format(addPeriod(start, frequency, i), "yyyy-MM-dd"),
+        amount: pmt,
+        principalPart,
+        interestPart,
+        remainingAfter: Math.max(0, remaining),
+      });
+    }
+  }
+
+  return schedule;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -113,15 +207,11 @@ export class DatabaseStorage implements IStorage {
     startDate: string;
     frequency: "once" | "monthly" | "weekly" | "daily";
   }): Promise<Loan & { schedule: ScheduleItem[] }> {
-    const { schedule, pmt } = calculateSchedule(
+    const { schedule, pmt } = buildAmortizationSchedule(
       data.amount, data.ratePercent, data.termMonths, data.frequency, data.startDate
     );
 
-    const periodsCount = data.frequency === "once" ? 1
-      : data.frequency === "weekly" ? data.termMonths * 4
-      : data.frequency === "daily" ? data.termMonths * 30
-      : data.termMonths;
-    const total = pmt * periodsCount;
+    const totalRepayment = schedule.reduce((sum, item) => sum + item.amount, 0);
 
     const [loan] = await db.insert(loans).values({
       lenderProfileId: data.lenderProfileId,
@@ -134,8 +224,8 @@ export class DatabaseStorage implements IStorage {
       frequency: data.frequency,
       status: "pending",
       monthlyPayment: pmt,
-      totalRepayment: total,
-      remainingAmount: total,
+      totalRepayment,
+      remainingAmount: data.amount,
     }).returning();
 
     const scheduleRows: InsertScheduleItem[] = schedule.map((item, index) => ({
@@ -143,6 +233,9 @@ export class DatabaseStorage implements IStorage {
       itemIndex: index,
       date: item.date,
       amount: item.amount,
+      principalPart: item.principalPart,
+      interestPart: item.interestPart,
+      remainingAfter: item.remainingAfter,
       status: "upcoming" as const,
     }));
 
@@ -229,44 +322,107 @@ export class DatabaseStorage implements IStorage {
     if (!loanData) return undefined;
 
     const paidAmount = req.amount;
-    const newRemaining = Math.max(0, loanData.remainingAmount - paidAmount);
+    const confirmationDate = new Date().toISOString();
+    const confirmationDateStr = format(new Date(), "yyyy-MM-dd");
+    const ratePercent = Number(loanData.ratePercent);
+    const currentRemainingPrincipal = loanData.remainingAmount;
 
     const nextItem = loanData.schedule.find(s => s.status === "upcoming");
-    if (nextItem) {
-      await db.update(scheduleItems).set({
-        status: "paid",
-        paidDate: new Date().toISOString(),
-        paidAmount: paidAmount,
-        amount: paidAmount,
-      }).where(eq(scheduleItems.id, nextItem.id));
+    if (!nextItem) return undefined;
 
-      if (newRemaining > 0 && loanData.frequency !== "once") {
-        const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
-        if (remainingItems.length > 0) {
-          const ratePercent = Number(loanData.ratePercent);
-          let ratePerPeriod = (ratePercent / 100) / 12;
-          if (loanData.frequency === "weekly") ratePerPeriod = (ratePercent / 100) / 52;
-          else if (loanData.frequency === "daily") ratePerPeriod = (ratePercent / 100) / 365;
+    const isOverpayment = paidAmount > nextItem.amount;
+    const isEarlyPayment = differenceInDays(parseISO(nextItem.date), new Date()) > 3;
+    const needsRecalculation = isOverpayment || isEarlyPayment;
 
-          let newPmt: number;
-          if (ratePerPeriod > 0) {
-            newPmt = Math.round((newRemaining * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -remainingItems.length)));
-          } else {
-            newPmt = Math.round(newRemaining / remainingItems.length);
-          }
+    let principalRepaid: number;
+    let interestCharged: number;
+    let newRemainingPrincipal: number;
 
-          for (const item of remainingItems) {
-            await db.update(scheduleItems).set({ amount: newPmt }).where(eq(scheduleItems.id, item.id));
+    if (needsRecalculation) {
+      const lastPaidItem = [...loanData.schedule].reverse().find(s => s.status === "paid");
+      const lastPaymentDate = lastPaidItem?.paidDate
+        ? parseISO(lastPaidItem.paidDate.split('T')[0])
+        : parseISO(loanData.startDate);
+
+      const daysElapsed = Math.max(0, differenceInDays(new Date(), lastPaymentDate));
+      const dailyRate = getDailyRate(ratePercent);
+      interestCharged = Math.round(currentRemainingPrincipal * dailyRate * daysElapsed);
+      principalRepaid = Math.max(0, paidAmount - interestCharged);
+      newRemainingPrincipal = Math.max(0, currentRemainingPrincipal - principalRepaid);
+    } else {
+      interestCharged = nextItem.interestPart;
+      principalRepaid = Math.min(paidAmount, nextItem.principalPart);
+      if (paidAmount >= nextItem.amount) {
+        principalRepaid = paidAmount - interestCharged;
+      }
+      newRemainingPrincipal = Math.max(0, currentRemainingPrincipal - principalRepaid);
+    }
+
+    await db.update(scheduleItems).set({
+      status: "paid",
+      paidDate: confirmationDate,
+      paidAmount: paidAmount,
+      principalPart: principalRepaid,
+      interestPart: interestCharged,
+      remainingAfter: newRemainingPrincipal,
+    }).where(eq(scheduleItems.id, nextItem.id));
+
+    if (needsRecalculation && newRemainingPrincipal > 0 && loanData.frequency !== "once") {
+      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
+
+      if (remainingItems.length > 0) {
+        const newSchedule = rebuildScheduleFromDate(
+          newRemainingPrincipal,
+          ratePercent,
+          loanData.frequency as "once" | "monthly" | "weekly" | "daily",
+          confirmationDateStr,
+          remainingItems.length
+        );
+
+        for (let i = 0; i < remainingItems.length; i++) {
+          const newRow = newSchedule[i];
+          if (newRow) {
+            await db.update(scheduleItems).set({
+              date: newRow.date,
+              amount: newRow.amount,
+              principalPart: newRow.principalPart,
+              interestPart: newRow.interestPart,
+              remainingAfter: newRow.remainingAfter,
+            }).where(eq(scheduleItems.id, remainingItems[i].id));
           }
         }
       }
+    } else if (!needsRecalculation) {
+      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
+      const r = getRatePerPeriod(ratePercent, loanData.frequency);
+      let remaining = newRemainingPrincipal;
+      for (const item of remainingItems) {
+        const interest = Math.round(remaining * r);
+        const principal = item.amount - interest;
+        remaining = Math.max(0, remaining - principal);
+        await db.update(scheduleItems).set({
+          principalPart: principal,
+          interestPart: interest,
+          remainingAfter: remaining,
+        }).where(eq(scheduleItems.id, item.id));
+      }
     }
 
-    const newStatus = newRemaining <= 0 ? "closed" : loanData.status;
-    const [updatedLoan] = await db.update(loans).set({
-      remainingAmount: newRemaining,
+    const newStatus = newRemainingPrincipal <= 0 ? "closed" : loanData.status;
+    const newMonthlyPayment = newRemainingPrincipal <= 0 ? loanData.monthlyPayment : (() => {
+      if (!needsRecalculation) return loanData.monthlyPayment;
+      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
+      if (remainingItems.length === 0) return loanData.monthlyPayment;
+      const r = getRatePerPeriod(ratePercent, loanData.frequency);
+      if (r > 0) return Math.round((newRemainingPrincipal * r) / (1 - Math.pow(1 + r, -remainingItems.length)));
+      return Math.round(newRemainingPrincipal / remainingItems.length);
+    })();
+
+    await db.update(loans).set({
+      remainingAmount: newRemainingPrincipal,
       status: newStatus,
-    }).where(eq(loans.id, req.loanId)).returning();
+      monthlyPayment: newMonthlyPayment,
+    }).where(eq(loans.id, req.loanId));
 
     const finalLoan = await this.getLoan(req.loanId);
     return { loan: finalLoan!, request: updatedReq };

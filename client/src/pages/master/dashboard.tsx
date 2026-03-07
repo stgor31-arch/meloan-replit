@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { getLoans, getLenderProfile } from "@/lib/api";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function MasterDashboard() {
   const { lenderProfileId } = useStore();
@@ -138,9 +139,14 @@ export default function MasterDashboard() {
             <h2 className="text-2xl font-bold text-gray-900">Meloan</h2>
             <p className="text-sm text-muted-foreground">{t.simple_lending}</p>
           </div>
-          <Button data-testid="button-create-loan" size="icon" className="rounded-2xl w-12 h-12 shadow-lg shadow-primary/20" onClick={handleCreate}>
-            <Plus className="w-6 h-6" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button data-testid="button-create-loan" size="icon" className="rounded-2xl w-12 h-12 shadow-lg shadow-primary/20" onClick={handleCreate}>
+                <Plus className="w-6 h-6" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Создать новый заём</TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -238,13 +244,18 @@ export default function MasterDashboard() {
                         <p className="text-xs font-bold">{loan.termMonths}м</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard.writeText(`${window.location.origin}/invite/${loan.id}`);
-                      toast({ title: t.link_copied });
-                    }}>
-                      <Share2 className="w-4 h-4 text-muted-foreground" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(`${window.location.origin}/invite/${loan.id}`);
+                          toast({ title: t.link_copied });
+                        }}>
+                          <Share2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Отправить ссылку заемщику</TooltipContent>
+                    </Tooltip>
                   </div>
                 </CardContent>
               </Card>
