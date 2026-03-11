@@ -3,7 +3,7 @@ import { translations } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles, Loader2, LogOut } from "lucide-react";
+import { CheckCircle2, FileText, ChevronRight, Share2, Plus, BarChart3, ChevronDown, Sparkles, Loader2, LogOut, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,95 @@ import { useAuth } from "@/hooks/use-auth";
 import { subscribePush, isPushSupported, isPushGranted } from "@/lib/pushNotifications";
 import { Bell } from "lucide-react";
 
+const ONBOARDING_KEY = "meloan-onboarding-done";
+
+function getOnboardingStep(hasProfile: boolean, hasLoans: boolean): number | null {
+  if (localStorage.getItem(ONBOARDING_KEY) === "true") return null;
+  if (!hasProfile) return 1;
+  if (!hasLoans) return 2;
+  localStorage.setItem(ONBOARDING_KEY, "true");
+  return null;
+}
+
+interface OnboardingBubbleProps {
+  step: number;
+  onDismiss: () => void;
+  onAction: () => void;
+}
+
+function OnboardingBubble({ step, onDismiss, onAction }: OnboardingBubbleProps) {
+  const steps = [
+    {
+      title: "Шаг 1 из 2",
+      text: "Заполните профиль кредитора — ваши данные будут указаны в расписке",
+      action: "Заполнить профиль",
+      icon: "👤",
+    },
+    {
+      title: "Шаг 2 из 2",
+      text: "Создайте первый займ — укажите сумму, срок и данные заёмщика",
+      action: "Создать займ",
+      icon: "📝",
+    },
+  ];
+
+  const s = steps[step - 1];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+      className="fixed bottom-20 left-4 right-4 max-w-md mx-auto z-[55]"
+    >
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-100 p-5 relative">
+        <button
+          onClick={onDismiss}
+          className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100 text-gray-400"
+          data-testid="button-dismiss-onboarding"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-start gap-4">
+          <div className="text-3xl flex-shrink-0 mt-0.5">{s.icon}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1">{s.title}</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{s.text}</p>
+            <Button
+              size="sm"
+              className="mt-3 rounded-xl text-xs h-9 px-4 shadow-md shadow-primary/20"
+              onClick={onAction}
+              data-testid="button-onboarding-action"
+            >
+              {s.action}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 justify-center mt-4">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === step ? "w-6 bg-blue-500" : "w-1.5 bg-gray-200"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function MasterDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const t = translations;
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -57,6 +140,13 @@ export default function MasterDashboard() {
 
   const activeLoans = loans.filter((l: any) => l.status === 'active' || l.status === 'pending');
 
+  useEffect(() => {
+    if (!isLoading && !authLoading && isAuthenticated) {
+      const step = getOnboardingStep(!!lenderProfile, activeLoans.length > 0);
+      setOnboardingStep(step);
+    }
+  }, [isLoading, authLoading, isAuthenticated, lenderProfile, activeLoans.length]);
+
   const handleCreate = () => {
     if (!lenderProfile) {
       toast({
@@ -68,6 +158,19 @@ export default function MasterDashboard() {
       return;
     }
     setLocation("/master/create-loan");
+  };
+
+  const handleOnboardingAction = () => {
+    if (onboardingStep === 1) {
+      setLocation("/master/profile");
+    } else if (onboardingStep === 2) {
+      setLocation("/master/create-loan");
+    }
+  };
+
+  const handleDismissOnboarding = () => {
+    localStorage.setItem(ONBOARDING_KEY, "true");
+    setOnboardingStep(null);
   };
 
   if (authLoading) {
@@ -219,36 +322,6 @@ export default function MasterDashboard() {
           </Tooltip>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card 
-            className="bg-primary text-white border-none rounded-3xl shadow-xl shadow-primary/20 cursor-pointer"
-            data-testid="card-active-loans"
-            onClick={() => {
-                const recentSection = document.getElementById('recent-loans');
-                recentSection?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <CardContent className="p-4 flex flex-col justify-between h-28">
-              <p className="text-xs text-white/80 uppercase font-bold tracking-wider">{t.total_active}</p>
-              <div className="flex items-end justify-between">
-                <h3 className="text-3xl font-display font-bold" data-testid="text-active-count">{activeLoans.length}</h3>
-                <ChevronDown className="w-5 h-5 text-white/50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border-none rounded-3xl shadow-md" onClick={() => setLocation("/master/profile")} data-testid="card-profile">
-            <CardContent className="p-4 flex flex-col justify-between h-28">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{t.profile}</p>
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-primary" />
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-300" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         <div className="space-y-4">
             <h3 className="font-display font-bold text-lg flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-primary" />
@@ -269,6 +342,11 @@ export default function MasterDashboard() {
         <div className="space-y-4" id="recent-loans">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-display font-bold text-lg">{t.recent_loans}</h3>
+            {activeLoans.length > 0 && (
+              <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full" data-testid="text-active-count">
+                {activeLoans.length}
+              </span>
+            )}
           </div>
 
           {isLoading && (
@@ -343,6 +421,16 @@ export default function MasterDashboard() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {onboardingStep && (
+          <OnboardingBubble
+            step={onboardingStep}
+            onDismiss={handleDismissOnboarding}
+            onAction={handleOnboardingAction}
+          />
+        )}
+      </AnimatePresence>
     </MobileLayout>
   );
 }
