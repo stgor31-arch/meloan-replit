@@ -118,22 +118,35 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
+  app.get("/api/logout", (req: any, res) => {
+    const isTelegramUser = req.user?.authProvider === "telegram";
     req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+      if (isTelegramUser) {
+        res.redirect("/");
+      } else {
+        res.redirect(
+          client.buildEndSessionUrl(config, {
+            client_id: process.env.REPL_ID!,
+            post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+          }).href
+        );
+      }
     });
   });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  if (user.authProvider === "telegram") {
+    return next();
+  }
+
+  if (!user.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 

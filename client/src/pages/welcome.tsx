@@ -106,7 +106,7 @@ export default function Welcome() {
 
   const handleLender = () => {
     if (!isAuthenticated) {
-      window.location.href = "/api/login";
+      window.location.href = "/login";
       return;
     }
     setCurrentUser("master");

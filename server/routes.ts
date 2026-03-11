@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { notifyLenderPaymentRequest, notifyBorrowerPaymentConfirmed, startPaymentReminders } from "./pushNotifications";
+import { verifyTelegramAuth, checkAuthDate, upsertTelegramUser } from "./telegramAuth";
 
 const createLoanBodySchema = z.object({
   lenderProfileId: z.string().min(1),
@@ -45,6 +46,26 @@ const pushSubscribeSchema = z.object({
   phone: z.string().optional(),
 });
 
+const telegramAuthSchema = z.object({
+  id: z.number(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  username: z.string().optional(),
+  photo_url: z.string().optional(),
+  auth_date: z.number(),
+  hash: z.string(),
+});
+
+function getUserId(req: any): string {
+  if (req.user?.claims?.sub) {
+    return req.user.claims.sub;
+  }
+  if (req.user?.userId) {
+    return req.user.userId;
+  }
+  throw new Error("No user ID found");
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -54,6 +75,48 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   startPaymentReminders();
+
+  app.get("/api/telegram-bot-username", (_req, res) => {
+    res.json({ username: process.env.TELEGRAM_BOT_USERNAME || "" });
+  });
+
+  app.post("/api/auth/telegram", (req: any, res) => {
+    try {
+      const data = telegramAuthSchema.parse(req.body);
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+      if (!botToken) {
+        return res.status(500).json({ message: "Telegram auth not configured" });
+      }
+
+      if (!verifyTelegramAuth(data, botToken)) {
+        return res.status(401).json({ message: "Invalid Telegram auth data" });
+      }
+
+      if (!checkAuthDate(data.auth_date)) {
+        return res.status(401).json({ message: "Auth data expired" });
+      }
+
+      upsertTelegramUser(data).then((user) => {
+        req.login({ userId: user.id, authProvider: "telegram" }, (err: any) => {
+          if (err) {
+            return res.status(500).json({ message: "Session creation failed" });
+          }
+          res.json({
+            id: user.id,
+            firstName: data.first_name || null,
+            lastName: data.last_name || null,
+            profileImageUrl: data.photo_url || null,
+          });
+        });
+      }).catch((err) => {
+        console.error("Telegram auth error:", err);
+        res.status(500).json({ message: "Auth failed" });
+      });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
 
   app.get("/api/vapid-public-key", (_req, res) => {
     res.json({ key: process.env.VAPID_PUBLIC_KEY || "" });
@@ -67,7 +130,7 @@ export async function registerRoutes(
         if (!req.isAuthenticated || !req.isAuthenticated()) {
           return res.status(401).json({ message: "Unauthorized" });
         }
-        const userId = req.user.claims.sub;
+        const userId = getUserId(req);
         await db.insert(pushSubscriptions).values({
           endpoint: parsed.endpoint,
           p256dh: parsed.keys.p256dh,
@@ -126,7 +189,7 @@ export async function registerRoutes(
       const [existing] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
       if (existing) {
         if (existing.type === "lender" && req.isAuthenticated && req.isAuthenticated()) {
-          if (existing.userId === req.user.claims.sub) {
+          if (existing.userId === getUserId(req)) {
             await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
           }
         } else if (existing.type === "borrower") {
@@ -141,7 +204,7 @@ export async function registerRoutes(
 
   app.get("/api/my-profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const profile = await storage.getLenderProfileByUserId(userId);
       if (!profile) return res.json(null);
       res.json(profile);
@@ -152,7 +215,7 @@ export async function registerRoutes(
 
   app.post("/api/lender-profile", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const existing = await storage.getLenderProfileByUserId(userId);
       if (existing) {
         return res.status(400).json({ message: "Profile already exists" });
@@ -173,7 +236,7 @@ export async function registerRoutes(
 
   app.put("/api/lender-profile/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const profile = await storage.getLenderProfile(req.params.id);
       if (!profile || profile.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
@@ -189,7 +252,7 @@ export async function registerRoutes(
 
   app.post("/api/loans", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const parsed = createLoanBodySchema.parse(req.body);
       const profile = await storage.getLenderProfile(parsed.lenderProfileId);
       if (!profile || profile.userId !== userId) {
@@ -203,7 +266,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/loans", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = getUserId(req);
     const profile = await storage.getLenderProfileByUserId(userId);
     if (!profile) return res.json([]);
     const result = await storage.getLoansByLender(profile.id);
@@ -269,7 +332,7 @@ export async function registerRoutes(
 
   app.post("/api/payment-requests/:id/confirm", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const profile = await storage.getLenderProfileByUserId(userId);
       if (!profile) return res.status(403).json({ message: "Forbidden" });
 

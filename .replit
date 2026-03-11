@@ -52,3 +52,5 @@ integrations = ["javascript_log_in_with_replit:2.0.0"]
 [userenv.shared]
 VAPID_PUBLIC_KEY = "BD3MMVONxmTtMhYOG1-Uu-i5xEEtmskSwE9aQpOaoVDuBtKc4bLyCdzjR_4XXhirpMyk6slnDTVVE5KifxJNjSk"
 VAPID_PRIVATE_KEY = "Ups3ODWt9rcAovZ4OOMi_Yq2ISk6gxlGjAZGMzDg3L8"
+TELEGRAM_BOT_TOKEN = "8629893769:AAF9Et3GF3Pgqs39JcYGx3gHJ7ox5tqDoYI"
+TELEGRAM_BOT_USERNAME = "meloan_auth_bot"

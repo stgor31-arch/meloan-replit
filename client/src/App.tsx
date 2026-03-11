@@ -12,6 +12,7 @@ import MasterLoanDetails from "@/pages/master/loan-details";
 import BorrowerLogin from "@/pages/borrower/login";
 import BorrowerInvite from "@/pages/borrower/invite";
 import BorrowerDashboard from "@/pages/borrower/dashboard";
+import LoginPage from "@/pages/login";
 import { AnimatePresence } from "framer-motion";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
     <AnimatePresence mode="wait">
       <Switch location={location} key={location}>
         <Route path="/" component={Welcome} />
+        <Route path="/login" component={LoginPage} />
         
         {/* Master (Lender) Routes */}
         <Route path="/master/dashboard" component={MasterDashboard} />
