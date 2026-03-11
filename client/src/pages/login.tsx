@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
@@ -6,13 +6,30 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
+async function processTelegramAuth(tgAuthResult: string): Promise<boolean> {
+  try {
+    const decoded = JSON.parse(atob(tgAuthResult));
+    if (!decoded?.id || !decoded?.hash) return false;
+
+    const res = await fetch("/api/auth/telegram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(decoded),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function LoginPage() {
   const [, navigate] = useLocation();
   const { user, isLoading } = useAuth();
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [botUsername, setBotUsername] = useState<string>("");
   const [botId, setBotId] = useState<string>("");
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -23,38 +40,50 @@ export default function LoginPage() {
   useEffect(() => {
     fetch("/api/telegram-bot-info")
       .then((r) => r.json())
-      .then((data) => {
-        setBotUsername(data.username);
-        setBotId(data.botId);
-      })
+      .then((data) => setBotId(data.botId))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    const handleMessage = async (e: MessageEvent) => {
-      if (e.origin !== "https://oauth.telegram.org") return;
+    const params = new URLSearchParams(window.location.search);
+    const tgAuthResult = params.get("tgAuthResult");
 
-      try {
-        const data = JSON.parse(e.data);
-        if (!data?.id || !data?.hash) return;
+    if (tgAuthResult) {
+      window.history.replaceState({}, "", "/login");
 
-        setTelegramLoading(true);
-        setError(null);
-
-        const res = await fetch("/api/auth/telegram", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(data),
+      if (window.opener) {
+        processTelegramAuth(tgAuthResult).then((ok) => {
+          window.opener.postMessage(
+            { type: "telegram_auth_done", success: ok },
+            window.location.origin
+          );
+          window.close();
         });
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || "Ошибка авторизации");
-        }
+      } else {
+        setTelegramLoading(true);
+        processTelegramAuth(tgAuthResult).then(async (ok) => {
+          if (ok) {
+            await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            navigate("/master/dashboard");
+          } else {
+            setError("Ошибка авторизации через Telegram");
+            setTelegramLoading(false);
+          }
+        });
+      }
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const handleMessage = async (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type !== "telegram_auth_done") return;
+
+      if (e.data.success) {
         await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
         navigate("/master/dashboard");
-      } catch (err: any) {
-        setError(err.message);
+      } else {
+        setError("Ошибка авторизации через Telegram");
         setTelegramLoading(false);
       }
     };
@@ -66,56 +95,44 @@ export default function LoginPage() {
   const handleTelegramLogin = useCallback(() => {
     if (!botId) return;
 
+    setTelegramLoading(true);
+    setError(null);
+
     const origin = window.location.origin;
-    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(origin + "/login")}`;
+    const returnTo = origin + "/login";
+    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(returnTo)}`;
 
-    const width = 550;
-    const height = 470;
-    const left = Math.max(0, (window.screen.width - width) / 2);
-    const top = Math.max(0, (window.screen.height - height) / 2);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    window.open(
-      authUrl,
-      "telegram_auth",
-      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=no`
-    );
+    if (isMobile) {
+      window.location.href = authUrl;
+    } else {
+      const width = 550;
+      const height = 470;
+      const left = Math.max(0, (window.screen.width - width) / 2);
+      const top = Math.max(0, (window.screen.height - height) / 2);
+
+      const popup = window.open(
+        authUrl,
+        "telegram_auth",
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=no`
+      );
+
+      if (pollTimer.current) clearInterval(pollTimer.current);
+      pollTimer.current = setInterval(() => {
+        if (popup && popup.closed) {
+          if (pollTimer.current) clearInterval(pollTimer.current);
+          setTelegramLoading(false);
+        }
+      }, 500);
+    }
   }, [botId]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tgAuthResult = params.get("tgAuthResult");
-    if (tgAuthResult) {
-      try {
-        const decoded = JSON.parse(atob(tgAuthResult));
-        if (decoded?.id && decoded?.hash) {
-          setTelegramLoading(true);
-          setError(null);
-
-          fetch("/api/auth/telegram", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(decoded),
-          })
-            .then(async (res) => {
-              if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.message || "Ошибка авторизации");
-              }
-              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-              navigate("/master/dashboard");
-            })
-            .catch((err: any) => {
-              setError(err.message);
-              setTelegramLoading(false);
-            });
-
-          window.history.replaceState({}, "", "/login");
-        }
-      } catch {
-      }
-    }
-  }, [navigate]);
+    return () => {
+      if (pollTimer.current) clearInterval(pollTimer.current);
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -168,16 +185,18 @@ export default function LoginPage() {
             disabled={!botId || telegramLoading}
             data-testid="button-telegram-login"
           >
-            <Send className="w-5 h-5 mr-2" />
-            Войти через Telegram
+            {telegramLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                Вход через Telegram...
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5 mr-2" />
+                Войти через Telegram
+              </>
+            )}
           </Button>
-
-          {telegramLoading && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-              Вход через Telegram...
-            </div>
-          )}
 
           {error && (
             <p className="text-sm text-red-500 text-center" data-testid="text-error">
