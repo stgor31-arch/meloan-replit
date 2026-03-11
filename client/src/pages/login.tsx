@@ -45,32 +45,39 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
+    let tgAuthResult: string | null = null;
+
     const params = new URLSearchParams(window.location.search);
-    const tgAuthResult = params.get("tgAuthResult");
+    tgAuthResult = params.get("tgAuthResult");
 
-    if (tgAuthResult) {
-      window.history.replaceState({}, "", "/login");
+    if (!tgAuthResult && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      tgAuthResult = hashParams.get("tgAuthResult");
+    }
 
-      if (window.opener) {
-        processTelegramAuth(tgAuthResult).then((ok) => {
-          window.opener.postMessage(
-            { type: "telegram_auth_done", success: ok },
-            window.location.origin
-          );
-          window.close();
-        });
-      } else {
-        setTelegramLoading(true);
-        processTelegramAuth(tgAuthResult).then(async (ok) => {
-          if (ok) {
-            await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-            navigate("/master/dashboard");
-          } else {
-            setError("Ошибка авторизации через Telegram");
-            setTelegramLoading(false);
-          }
-        });
-      }
+    if (!tgAuthResult) return;
+
+    window.history.replaceState({}, "", "/login");
+
+    if (window.opener) {
+      processTelegramAuth(tgAuthResult).then((ok) => {
+        window.opener.postMessage(
+          { type: "telegram_auth_done", success: ok },
+          window.location.origin
+        );
+        window.close();
+      });
+    } else {
+      setTelegramLoading(true);
+      processTelegramAuth(tgAuthResult).then(async (ok) => {
+        if (ok) {
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+          navigate("/master/dashboard");
+        } else {
+          setError("Ошибка авторизации через Telegram");
+          setTelegramLoading(false);
+        }
+      });
     }
   }, [navigate]);
 
