@@ -76,8 +76,13 @@ export async function registerRoutes(
 
   startPaymentReminders();
 
-  app.get("/api/telegram-bot-username", (_req, res) => {
-    res.json({ username: process.env.TELEGRAM_BOT_USERNAME || "" });
+  app.get("/api/telegram-bot-info", (_req, res) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN || "";
+    const botId = token.split(":")[0] || "";
+    res.json({
+      username: process.env.TELEGRAM_BOT_USERNAME || "",
+      botId,
+    });
   });
 
   app.post("/api/auth/telegram", (req: any, res) => {

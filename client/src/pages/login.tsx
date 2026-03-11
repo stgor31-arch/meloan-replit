@@ -1,25 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-
-declare global {
-  interface Window {
-    onTelegramAuth: (user: any) => void;
-  }
-}
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
   const { user, isLoading } = useAuth();
-  const telegramContainerRef = useRef<HTMLDivElement>(null);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [botUsername, setBotUsername] = useState<string>("");
+  const [botId, setBotId] = useState<string>("");
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -28,54 +21,101 @@ export default function LoginPage() {
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
-    fetch("/api/telegram-bot-username")
+    fetch("/api/telegram-bot-info")
       .then((r) => r.json())
-      .then((data) => setBotUsername(data.username))
+      .then((data) => {
+        setBotUsername(data.username);
+        setBotId(data.botId);
+      })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!botUsername || !telegramContainerRef.current) return;
+    const handleMessage = async (e: MessageEvent) => {
+      if (e.origin !== "https://oauth.telegram.org") return;
 
-    window.onTelegramAuth = async (tgUser: any) => {
-      setTelegramLoading(true);
-      setError(null);
       try {
+        const data = JSON.parse(e.data);
+        if (!data?.id || !data?.hash) return;
+
+        setTelegramLoading(true);
+        setError(null);
+
         const res = await fetch("/api/auth/telegram", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(tgUser),
+          body: JSON.stringify(data),
         });
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.message || "Ошибка авторизации");
+          const errData = await res.json();
+          throw new Error(errData.message || "Ошибка авторизации");
         }
         await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
         navigate("/master/dashboard");
-      } catch (e: any) {
-        setError(e.message);
+      } catch (err: any) {
+        setError(err.message);
         setTelegramLoading(false);
       }
     };
 
-    const container = telegramContainerRef.current;
-    container.innerHTML = "";
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [navigate]);
 
-    const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-login", botUsername);
-    script.setAttribute("data-size", "large");
-    script.setAttribute("data-radius", "12");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
-    script.setAttribute("data-request-access", "write");
-    script.async = true;
-    container.appendChild(script);
+  const handleTelegramLogin = useCallback(() => {
+    if (!botId) return;
 
-    return () => {
-      container.innerHTML = "";
-    };
-  }, [botUsername, navigate]);
+    const origin = window.location.origin;
+    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(origin + "/login")}`;
+
+    const width = 550;
+    const height = 470;
+    const left = Math.max(0, (window.screen.width - width) / 2);
+    const top = Math.max(0, (window.screen.height - height) / 2);
+
+    window.open(
+      authUrl,
+      "telegram_auth",
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=no,resizable=no`
+    );
+  }, [botId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tgAuthResult = params.get("tgAuthResult");
+    if (tgAuthResult) {
+      try {
+        const decoded = JSON.parse(atob(tgAuthResult));
+        if (decoded?.id && decoded?.hash) {
+          setTelegramLoading(true);
+          setError(null);
+
+          fetch("/api/auth/telegram", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(decoded),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.message || "Ошибка авторизации");
+              }
+              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+              navigate("/master/dashboard");
+            })
+            .catch((err: any) => {
+              setError(err.message);
+              setTelegramLoading(false);
+            });
+
+          window.history.replaceState({}, "", "/login");
+        }
+      } catch {
+      }
+    }
+  }, [navigate]);
 
   if (isLoading) {
     return (
@@ -121,11 +161,16 @@ export default function LoginPage() {
         </div>
 
         <div className="w-full flex flex-col items-center gap-4 mt-2">
-          <div
-            ref={telegramContainerRef}
-            className="flex items-center justify-center min-h-[48px]"
-            data-testid="container-telegram-widget"
-          />
+          <Button
+            className="w-full h-12 text-sm font-medium text-white"
+            style={{ backgroundColor: "#54a9eb" }}
+            onClick={handleTelegramLogin}
+            disabled={!botId || telegramLoading}
+            data-testid="button-telegram-login"
+          >
+            <Send className="w-5 h-5 mr-2" />
+            Войти через Telegram
+          </Button>
 
           {telegramLoading && (
             <div className="flex items-center gap-2 text-sm text-slate-500">
