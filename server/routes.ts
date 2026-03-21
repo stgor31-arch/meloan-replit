@@ -341,7 +341,8 @@ export async function registerRoutes(
       const profile = await storage.getLenderProfileByUserId(userId);
       if (!profile) return res.status(403).json({ message: "Forbidden" });
 
-      const result = await storage.confirmPayment(req.params.id);
+      const strategy = req.body?.strategy === "reduce_term" ? "reduce_term" : "reduce_payment";
+      const result = await storage.confirmPayment(req.params.id, strategy);
       if (!result) return res.status(404).json({ message: "Not found" });
 
       if (result.loan.lenderProfileId !== profile.id) {

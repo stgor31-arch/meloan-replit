@@ -4,15 +4,99 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRoute } from "wouter";
-import { Calendar, Copy, Check, Bell, Gavel, Star, PartyPopper, Loader2, Send, MessageCircleMore } from "lucide-react";
+import { Calendar, Copy, Check, Bell, Gavel, Star, PartyPopper, Loader2, Send, MessageCircleMore, TrendingDown, Timer, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { getLoan, getPaymentRequests, confirmPayment, rateLoan } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+type OverpaymentStrategy = "reduce_term" | "reduce_payment";
+
+interface StrategySheetProps {
+  reqId: string;
+  reqAmount: number;
+  scheduledAmount: number;
+  onConfirm: (strategy: OverpaymentStrategy) => void;
+  onClose: () => void;
+  isPending: boolean;
+}
+
+function OverpaymentStrategySheet({ reqId, reqAmount, scheduledAmount, onConfirm, onClose, isPending }: StrategySheetProps) {
+  const overpaid = reqAmount - scheduledAmount;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-end"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="w-full max-w-md mx-auto bg-white rounded-t-[2rem] p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold">Переплата: +{overpaid.toLocaleString()} ₽</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100" data-testid="button-close-strategy-sheet">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Заёмщик внёс <strong>{reqAmount.toLocaleString()} ₽</strong> вместо планового&nbsp;
+          <strong>{scheduledAmount.toLocaleString()} ₽</strong>. Как пересчитать график?
+        </p>
+
+        <div className="space-y-3">
+          <button
+            data-testid="button-strategy-reduce-term"
+            disabled={isPending}
+            onClick={() => onConfirm("reduce_term")}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-primary bg-primary/5 hover:bg-primary/10 transition-colors text-left disabled:opacity-50"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Timer className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-bold text-primary">Сократить срок</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Ежемесячный платёж остаётся прежним, займ закроется раньше</p>
+            </div>
+          </button>
+
+          <button
+            data-testid="button-strategy-reduce-payment"
+            disabled={isPending}
+            onClick={() => onConfirm("reduce_payment")}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-border hover:border-gray-300 hover:bg-gray-50 transition-colors text-left disabled:opacity-50"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <TrendingDown className="w-5 h-5 text-gray-500" />
+            </div>
+            <div>
+              <p className="font-bold text-gray-800">Сократить платёж</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Срок займа не меняется, ежемесячная сумма уменьшится</p>
+            </div>
+          </button>
+        </div>
+
+        {isPending && (
+          <div className="flex justify-center pt-2">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
 
 export default function MasterLoanDetails() {
   const [, params] = useRoute("/master/loan/:id");
@@ -20,6 +104,7 @@ export default function MasterLoanDetails() {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+  const [strategySheet, setStrategySheet] = useState<{ reqId: string; reqAmount: number; scheduledAmount: number } | null>(null);
   const t = translations;
 
   const { data: loan, isLoading } = useQuery({
@@ -37,11 +122,14 @@ export default function MasterLoanDetails() {
   });
 
   const confirmMutation = useMutation({
-    mutationFn: confirmPayment,
+    mutationFn: ({ requestId, strategy }: { requestId: string; strategy?: OverpaymentStrategy }) =>
+      confirmPayment(requestId, strategy),
     onSuccess: () => {
+      setStrategySheet(null);
       queryClient.invalidateQueries({ queryKey: ["/api/loans", loanId] });
       queryClient.invalidateQueries({ queryKey: ["/api/payment-requests", loanId] });
       queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
+      toast({ title: "Платёж подтверждён", description: "График платежей пересчитан" });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -70,6 +158,7 @@ export default function MasterLoanDetails() {
   }
 
   const relevantRequests = allRequests.filter((r: any) => r.status === "pending");
+  const nextScheduledItem = loan.schedule?.find((s: any) => s.status === "upcoming");
   const inviteLink = `${window.location.origin}/invite/${loan.id}`;
   const shareText = `Приглашение в Meloan: заём на ${loan.amount.toLocaleString()} ₽. Перейдите по ссылке для подтверждения:`;
 
@@ -86,6 +175,17 @@ export default function MasterLoanDetails() {
 
   const shareViaWhatsApp = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + inviteLink)}`, '_blank');
+  };
+
+  const handleConfirmClick = (req: any) => {
+    const scheduledAmount = nextScheduledItem?.amount ?? 0;
+    const isOverpayment = req.amount > scheduledAmount && scheduledAmount > 0;
+
+    if (isOverpayment && loan.frequency !== "once") {
+      setStrategySheet({ reqId: req.id, reqAmount: req.amount, scheduledAmount });
+    } else {
+      confirmMutation.mutate({ requestId: req.id });
+    }
   };
 
   return (
@@ -130,33 +230,59 @@ export default function MasterLoanDetails() {
             </motion.div>
         )}
 
-        {relevantRequests.map((req: any) => (
-            <Card key={req.id} className="border-2 border-primary bg-primary/5 animate-pulse rounded-2xl">
-                <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Bell className="w-5 h-5 text-primary" />
-                        <div>
-                            <p className="text-xs font-bold text-primary uppercase">{t.payment_confirmation}</p>
-                            <p className="text-lg font-bold">{req.amount.toLocaleString()} ₽</p>
-                        </div>
+        {relevantRequests.map((req: any) => {
+          const scheduledAmount = nextScheduledItem?.amount ?? 0;
+          const isOverpayment = req.amount > scheduledAmount && scheduledAmount > 0 && loan.frequency !== "once";
+
+          return (
+            <Card key={req.id} className={cn(
+              "border-2 rounded-2xl",
+              isOverpayment
+                ? "border-orange-400 bg-orange-50 animate-pulse"
+                : "border-primary bg-primary/5 animate-pulse"
+            )}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Bell className={cn("w-5 h-5", isOverpayment ? "text-orange-500" : "text-primary")} />
+                    <div>
+                      <p className={cn("text-xs font-bold uppercase", isOverpayment ? "text-orange-600" : "text-primary")}>
+                        {isOverpayment ? "Переплата!" : t.payment_confirmation}
+                      </p>
+                      <p className="text-lg font-bold">{req.amount.toLocaleString()} ₽</p>
                     </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          data-testid={`button-confirm-${req.id}`}
-                          size="sm"
-                          onClick={() => confirmMutation.mutate(req.id)}
-                          className="rounded-xl shadow-lg"
-                          disabled={confirmMutation.isPending}
-                        >
-                            {t.confirm}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Подтвердить получение платежа от заемщика</TooltipContent>
-                    </Tooltip>
-                </CardContent>
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        data-testid={`button-confirm-${req.id}`}
+                        size="sm"
+                        onClick={() => handleConfirmClick(req)}
+                        className={cn(
+                          "rounded-xl shadow-lg",
+                          isOverpayment && "bg-orange-500 hover:bg-orange-600"
+                        )}
+                        disabled={confirmMutation.isPending}
+                      >
+                        {confirmMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t.confirm}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {isOverpayment
+                        ? "Выберите способ пересчёта графика"
+                        : "Подтвердить получение платежа от заемщика"}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                {isOverpayment && (
+                  <p className="text-xs text-orange-600/80 bg-orange-100 rounded-xl px-3 py-1.5">
+                    Плановый платёж: {scheduledAmount.toLocaleString()} ₽ · Переплата: +{(req.amount - scheduledAmount).toLocaleString()} ₽
+                  </p>
+                )}
+              </CardContent>
             </Card>
-        ))}
+          );
+        })}
 
         <Card className="rounded-3xl border-none shadow-lg overflow-hidden">
           <div className="bg-primary p-6 text-white text-center">
@@ -262,7 +388,10 @@ export default function MasterLoanDetails() {
                                 </div>
                             </div>
                             <div className="text-right">
-                                 <p className="font-bold text-lg">{item.amount.toLocaleString()} ₽</p>
+                                <p className="font-bold text-lg">{item.amount.toLocaleString()} ₽</p>
+                                {item.status === "paid" && item.paidAmount && item.paidAmount !== item.amount && (
+                                  <p className="text-xs text-orange-500 font-medium">факт: {item.paidAmount.toLocaleString()} ₽</p>
+                                )}
                             </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-dashed border-gray-100 flex justify-between text-xs text-muted-foreground">
@@ -279,6 +408,19 @@ export default function MasterLoanDetails() {
             </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {strategySheet && (
+          <OverpaymentStrategySheet
+            reqId={strategySheet.reqId}
+            reqAmount={strategySheet.reqAmount}
+            scheduledAmount={strategySheet.scheduledAmount}
+            onConfirm={(strategy) => confirmMutation.mutate({ requestId: strategySheet.reqId, strategy })}
+            onClose={() => setStrategySheet(null)}
+            isPending={confirmMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
     </MobileLayout>
   );
 }

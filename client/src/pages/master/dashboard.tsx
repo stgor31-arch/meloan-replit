@@ -376,6 +376,11 @@ export default function MasterDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-lg">{loan.amount.toLocaleString()} ₽</p>
+                      {loan.remainingAmount !== undefined && loan.remainingAmount !== loan.amount && (
+                        <p className="text-xs text-muted-foreground">
+                          остаток: <span className="font-semibold text-orange-500">{loan.remainingAmount.toLocaleString()} ₽</span>
+                        </p>
+                      )}
                       <p className="text-[10px] text-primary font-bold uppercase tracking-tighter bg-primary/5 px-2 py-0.5 rounded-full inline-block">
                         {loan.status}
                       </p>

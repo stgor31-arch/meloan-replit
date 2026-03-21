@@ -9,6 +9,8 @@ import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
 import { addDays, addWeeks, addMonths, format, parseISO, differenceInDays } from "date-fns";
 
+export type OverpaymentStrategy = "reduce_term" | "reduce_payment";
+
 export interface IStorage {
   createLenderProfile(profile: InsertLenderProfile & { userId: string }): Promise<LenderProfile>;
   getLenderProfile(id: string): Promise<LenderProfile | undefined>;
@@ -32,7 +34,10 @@ export interface IStorage {
 
   createPaymentRequest(data: InsertPaymentRequest): Promise<PaymentRequest>;
   getPaymentRequestsByLoan(loanId: string): Promise<PaymentRequest[]>;
-  confirmPayment(requestId: string): Promise<{ loan: Loan & { schedule: ScheduleItem[] }; request: PaymentRequest } | undefined>;
+  confirmPayment(
+    requestId: string,
+    strategy?: OverpaymentStrategy
+  ): Promise<{ loan: Loan & { schedule: ScheduleItem[] }; request: PaymentRequest } | undefined>;
 
   rateLoan(loanId: string, type: "borrower" | "lender", stars: number): Promise<Loan | undefined>;
 }
@@ -182,6 +187,20 @@ function rebuildScheduleFromDate(
   return schedule;
 }
 
+function calcPeriodsForReduceTerm(
+  remainingPrincipal: number,
+  currentPMT: number,
+  ratePercent: number,
+  frequency: string
+): number {
+  const r = getRatePerPeriod(ratePercent, frequency);
+  if (remainingPrincipal <= 0) return 0;
+  if (r === 0) return Math.max(1, Math.ceil(remainingPrincipal / currentPMT));
+  const ratio = remainingPrincipal * r / currentPMT;
+  if (ratio >= 1) return 99999;
+  return Math.max(1, Math.ceil(-Math.log(1 - ratio) / Math.log(1 + r)));
+}
+
 export class DatabaseStorage implements IStorage {
   async createLenderProfile(profile: InsertLenderProfile & { userId: string }): Promise<LenderProfile> {
     const [result] = await db.insert(lenderProfiles).values(profile).returning();
@@ -324,7 +343,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(paymentRequests.id));
   }
 
-  async confirmPayment(requestId: string): Promise<{ loan: Loan & { schedule: ScheduleItem[] }; request: PaymentRequest } | undefined> {
+  async confirmPayment(
+    requestId: string,
+    strategy: OverpaymentStrategy = "reduce_payment"
+  ): Promise<{ loan: Loan & { schedule: ScheduleItem[] }; request: PaymentRequest } | undefined> {
     const [req] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, requestId));
     if (!req) return undefined;
 
@@ -382,33 +404,78 @@ export class DatabaseStorage implements IStorage {
       remainingAfter: newRemainingPrincipal,
     }).where(eq(scheduleItems.id, nextItem.id));
 
+    const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
+    let newMonthlyPayment = loanData.monthlyPayment;
+
     if (needsRecalculation && newRemainingPrincipal > 0 && loanData.frequency !== "once") {
-      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
+      if (strategy === "reduce_term" && isOverpayment) {
+        // Keep the same monthly payment, reduce the number of remaining periods
+        const currentPMT = loanData.monthlyPayment;
+        const newPeriods = calcPeriodsForReduceTerm(newRemainingPrincipal, currentPMT, ratePercent, loanData.frequency);
+        const effectivePeriods = Math.min(newPeriods, remainingItems.length);
 
-      if (remainingItems.length > 0) {
-        const newSchedule = rebuildScheduleFromDate(
-          newRemainingPrincipal,
-          ratePercent,
-          loanData.frequency as "once" | "monthly" | "weekly" | "daily",
-          confirmationDateStr,
-          remainingItems.length
-        );
+        // Delete schedule items beyond what's needed
+        const itemsToKeep = remainingItems.slice(0, effectivePeriods);
+        const itemsToDelete = remainingItems.slice(effectivePeriods);
+        for (const item of itemsToDelete) {
+          await db.delete(scheduleItems).where(eq(scheduleItems.id, item.id));
+        }
 
-        for (let i = 0; i < remainingItems.length; i++) {
-          const newRow = newSchedule[i];
-          if (newRow) {
-            await db.update(scheduleItems).set({
-              date: newRow.date,
-              amount: newRow.amount,
-              principalPart: newRow.principalPart,
-              interestPart: newRow.interestPart,
-              remainingAfter: newRow.remainingAfter,
-            }).where(eq(scheduleItems.id, remainingItems[i].id));
+        // Rebuild kept items with new amounts
+        if (itemsToKeep.length > 0) {
+          const newSchedule = rebuildScheduleFromDate(
+            newRemainingPrincipal,
+            ratePercent,
+            loanData.frequency as "once" | "monthly" | "weekly" | "daily",
+            confirmationDateStr,
+            itemsToKeep.length
+          );
+          for (let i = 0; i < itemsToKeep.length; i++) {
+            const newRow = newSchedule[i];
+            if (newRow) {
+              await db.update(scheduleItems).set({
+                date: newRow.date,
+                amount: newRow.amount,
+                principalPart: newRow.principalPart,
+                interestPart: newRow.interestPart,
+                remainingAfter: newRow.remainingAfter,
+              }).where(eq(scheduleItems.id, itemsToKeep[i].id));
+            }
+          }
+        }
+
+        newMonthlyPayment = currentPMT;
+      } else {
+        // strategy === "reduce_payment": keep same periods, reduce monthly payment
+        if (remainingItems.length > 0) {
+          const newSchedule = rebuildScheduleFromDate(
+            newRemainingPrincipal,
+            ratePercent,
+            loanData.frequency as "once" | "monthly" | "weekly" | "daily",
+            confirmationDateStr,
+            remainingItems.length
+          );
+          for (let i = 0; i < remainingItems.length; i++) {
+            const newRow = newSchedule[i];
+            if (newRow) {
+              await db.update(scheduleItems).set({
+                date: newRow.date,
+                amount: newRow.amount,
+                principalPart: newRow.principalPart,
+                interestPart: newRow.interestPart,
+                remainingAfter: newRow.remainingAfter,
+              }).where(eq(scheduleItems.id, remainingItems[i].id));
+            }
+          }
+          const r = getRatePerPeriod(ratePercent, loanData.frequency);
+          if (r > 0) {
+            newMonthlyPayment = Math.round((newRemainingPrincipal * r) / (1 - Math.pow(1 + r, -remainingItems.length)));
+          } else {
+            newMonthlyPayment = Math.round(newRemainingPrincipal / remainingItems.length);
           }
         }
       }
     } else if (!needsRecalculation) {
-      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
       const r = getRatePerPeriod(ratePercent, loanData.frequency);
       let remaining = newRemainingPrincipal;
       for (const item of remainingItems) {
@@ -424,14 +491,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     const newStatus = newRemainingPrincipal <= 0 ? "closed" : loanData.status;
-    const newMonthlyPayment = newRemainingPrincipal <= 0 ? loanData.monthlyPayment : (() => {
-      if (!needsRecalculation) return loanData.monthlyPayment;
-      const remainingItems = loanData.schedule.filter(s => s.status === "upcoming" && s.id !== nextItem.id);
-      if (remainingItems.length === 0) return loanData.monthlyPayment;
-      const r = getRatePerPeriod(ratePercent, loanData.frequency);
-      if (r > 0) return Math.round((newRemainingPrincipal * r) / (1 - Math.pow(1 + r, -remainingItems.length)));
-      return Math.round(newRemainingPrincipal / remainingItems.length);
-    })();
 
     await db.update(loans).set({
       remainingAmount: newRemainingPrincipal,

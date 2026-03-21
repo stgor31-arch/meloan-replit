@@ -93,7 +93,7 @@ export async function getPaymentRequests(loanId: string) {
   return res.json();
 }
 
-export async function confirmPayment(requestId: string) {
-  const res = await apiRequest("POST", `/api/payment-requests/${requestId}/confirm`);
+export async function confirmPayment(requestId: string, strategy?: "reduce_term" | "reduce_payment") {
+  const res = await apiRequest("POST", `/api/payment-requests/${requestId}/confirm`, strategy ? { strategy } : undefined);
   return res.json();
 }
