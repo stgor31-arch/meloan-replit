@@ -98,3 +98,48 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` - Web Push VAPID keys
 - `SESSION_SECRET` - Express session secret
 - `DATABASE_URL` - PostgreSQL connection string
+
+## Monetization Plan (future)
+
+### Current state
+Тарифный UI уже реализован в `client/src/pages/master/dashboard.tsx` (drawer "Выберите тариф"):
+- **Free** — бесплатно, до 2 займов
+- **Expert** — 149 ₽/мес, до 10 займов, досудебная претензия
+- **PRO** — 399 ₽/мес, безлимит, аналитика, учёт средств
+
+Кнопки «Выбрать» ни к чему не подключены. В `loan-details.tsx` есть задел с `toast("Доступно в Expert")`. Реальных ограничений на бэкенде нет.
+
+### Платёжный шлюз: ЮKassa
+Рекомендуется **ЮKassa** (yookassa.ru) — оптимальный выбор для российского SaaS:
+- Поддерживает карты Мир/Visa/MC, СБП, Apple/Google Pay
+- Рекуррентные платежи (автоподписка)
+- Комиссия ~2.8% с карт, 0% через СБП
+- Требуется ИП или ООО
+- Env vars: `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`
+
+### Что нужно реализовать
+
+**1. База данных** — добавить в `users`:
+- `subscriptionTier` (`free` / `expert` / `pro`)
+- `subscriptionExpiresAt` (timestamp)
+- `yookassaCustomerId`
+- Новая таблица `subscription_payments` (история платежей)
+
+**2. Бэкенд** (`server/routes.ts` + `server/storage.ts`):
+- `POST /api/subscribe` — создать платёж через ЮKassa API
+- `GET /api/subscription/status` — текущий тариф пользователя
+- `POST /api/subscription/cancel` — отмена подписки
+- `POST /api/yookassa/webhook` — обработка событий оплаты от ЮKassa
+- Middleware на `POST /api/loans` — реальная проверка лимита займов по тарифу
+
+**3. Фронтенд**:
+- Кнопки «Выбрать» → переход на страницу оплаты ЮKassa
+- Страница `/master/subscription` — управление подпиской, история, отмена
+- Реальная блокировка «Создать заём» при достижении лимита Free
+- Добавить годовые тарифы со скидкой ~20% (Expert ~1430 ₽/год, PRO ~3830 ₽/год)
+
+**4. Шаги запуска**:
+1. Зарегистрироваться на yookassa.ru (ИП/ООО)
+2. Получить shopId и secretKey в личном кабинете
+3. Добавить в переменные окружения production
+4. Настроить webhook URL в панели ЮKassa на `/api/yookassa/webhook`
