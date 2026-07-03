@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [botId, setBotId] = useState<string>("");
+  const [providers, setProviders] = useState<{ yandex: boolean; vk: boolean }>({ yandex: false, vk: false });
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -42,6 +43,26 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((data) => setBotId(data.botId))
       .catch(() => {});
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then((data) => setProviders({ yandex: !!data.yandex, vk: !!data.vk }))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    if (!err) return;
+
+    window.history.replaceState({}, "", "/login");
+
+    if (err.startsWith("yandex")) {
+      setError("Не удалось войти через Яндекс. Попробуйте ещё раз.");
+    } else if (err.startsWith("vk")) {
+      setError("Не удалось войти через VK. Попробуйте ещё раз.");
+    } else {
+      setError("Ошибка авторизации. Попробуйте ещё раз.");
+    }
   }, []);
 
   useEffect(() => {
@@ -211,22 +232,45 @@ export default function LoginPage() {
             </p>
           )}
 
-          <div className="w-full flex items-center gap-3 my-1">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="text-xs text-slate-400 uppercase">или</span>
-            <div className="flex-1 h-px bg-slate-200" />
-          </div>
+          {(providers.yandex || providers.vk) && (
+            <div className="w-full flex items-center gap-3 my-1">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400 uppercase">или</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+          )}
 
-          <Button
-            variant="outline"
-            className="w-full h-12 text-sm font-medium border-slate-200 hover:bg-slate-50"
-            onClick={() => {
-              window.location.href = "/api/login";
-            }}
-            data-testid="button-replit-login"
-          >
-            Войти через Google / GitHub / Apple
-          </Button>
+          {providers.yandex && (
+            <Button
+              className="w-full h-12 text-sm font-medium text-white hover:opacity-90"
+              style={{ backgroundColor: "#FC3F1D" }}
+              onClick={() => {
+                window.location.href = "/api/auth/yandex";
+              }}
+              data-testid="button-yandex-login"
+            >
+              <span className="w-5 h-5 mr-2 rounded-full bg-white text-[#FC3F1D] flex items-center justify-center font-bold text-sm leading-none">
+                Я
+              </span>
+              Войти с Яндекс ID
+            </Button>
+          )}
+
+          {providers.vk && (
+            <Button
+              className="w-full h-12 text-sm font-medium text-white hover:opacity-90"
+              style={{ backgroundColor: "#0077FF" }}
+              onClick={() => {
+                window.location.href = "/api/auth/vk";
+              }}
+              data-testid="button-vk-login"
+            >
+              <span className="w-5 h-5 mr-2 rounded-md bg-white text-[#0077FF] flex items-center justify-center font-bold text-xs leading-none">
+                VK
+              </span>
+              Войти через VK ID
+            </Button>
+          )}
         </div>
 
         <p className="text-xs text-slate-400 text-center mt-4 px-4" data-testid="text-privacy">

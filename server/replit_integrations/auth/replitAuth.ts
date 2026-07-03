@@ -119,9 +119,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req: any, res) => {
-    const isTelegramUser = req.user?.authProvider === "telegram";
+    const isNonOidcUser = !!req.user?.authProvider;
     req.logout(() => {
-      if (isTelegramUser) {
+      if (isNonOidcUser) {
         res.redirect("/");
       } else {
         res.redirect(
@@ -142,7 +142,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   const user = req.user as any;
 
-  if (user.authProvider === "telegram") {
+  if (user.authProvider) {
     return next();
   }
 

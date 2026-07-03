@@ -8,6 +8,7 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { notifyLenderPaymentRequest, notifyBorrowerPaymentConfirmed, startPaymentReminders } from "./pushNotifications";
 import { verifyTelegramAuth, checkAuthDate, upsertTelegramUser } from "./telegramAuth";
+import { registerOAuthProviderRoutes, loginWithRegeneratedSession } from "./oauthProviders";
 
 const createLoanBodySchema = z.object({
   lenderProfileId: z.string().min(1),
@@ -73,6 +74,7 @@ export async function registerRoutes(
 
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerOAuthProviderRoutes(app);
 
   startPaymentReminders();
 
@@ -103,7 +105,7 @@ export async function registerRoutes(
       }
 
       upsertTelegramUser(data).then((user) => {
-        req.login({ userId: user.id, authProvider: "telegram" }, (err: any) => {
+        loginWithRegeneratedSession(req, { userId: user.id, authProvider: "telegram" }, (err: any) => {
           if (err) {
             return res.status(500).json({ message: "Session creation failed" });
           }
