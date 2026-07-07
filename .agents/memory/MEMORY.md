@@ -1,0 +1,1 @@
+- [Publish DB endpoint disabled](publish-db-endpoint-disabled.md) — publish fails on "database diff / endpoint disabled" while checkDatabase shows not-provisioned but dev SQL works; fix = createDatabase() to re-link.
