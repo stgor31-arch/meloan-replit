@@ -33,28 +33,16 @@ async function upsertProviderUser(
     return { id: existing.id };
   }
 
-  if (profile.email) {
-    const [byEmail] = await db.select().from(users).where(eq(users.email, profile.email));
-    if (byEmail) {
-      const providerField = provider === "yandex" ? { yandexId: providerId } : { vkId: providerId };
-      await db
-        .update(users)
-        .set({
-          ...providerField,
-          firstName: profile.firstName || byEmail.firstName,
-          lastName: profile.lastName || byEmail.lastName,
-          profileImageUrl: profile.profileImageUrl || byEmail.profileImageUrl,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, byEmail.id));
-      return { id: byEmail.id };
-    }
+  let email: string | null = profile.email;
+  if (email) {
+    const [emailTaken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+    if (emailTaken) email = null;
   }
 
   const values: Record<string, any> = {
     firstName: profile.firstName,
     lastName: profile.lastName,
-    email: profile.email,
+    email,
     profileImageUrl: profile.profileImageUrl,
   };
   if (provider === "yandex") values.yandexId = providerId;

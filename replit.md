@@ -25,7 +25,7 @@ Russian-language peer-to-peer lending platform where users can act as Lender (К
 - **VK ID**: OAuth 2.1 + PKCE flow via id.vk.com. Routes: `GET /api/auth/vk` (start), `GET /api/auth/vk/callback`. Env var: `VK_CLIENT_ID`. Implemented in `server/oauthProviders.ts`.
 - **Replit Auth**: Legacy OIDC (disabled at platform level; server code kept, UI button removed from login page).
 - **Branded login page**: `/login` — Meloan branding, Telegram widget, Yandex/VK buttons (shown only when configured, via `GET /api/auth/providers`).
-- **Account linking**: Provider logins upsert into `users` by provider ID (`telegramId`/`yandexId`/`vkId`); if provider email matches an existing user, the provider ID is attached to that account instead of creating a duplicate.
+- **Account linking**: Provider logins upsert into `users` strictly by provider ID (`telegramId`/`yandexId`/`vkId`). Cross-provider merging by email is intentionally NOT done; if a provider email collides with an existing user, the new account is created with a null email to avoid the unique constraint.
 - **Session security**: session ID is regenerated on every successful login (Telegram/Yandex/VK) via `loginWithRegeneratedSession`.
 - **userId abstraction**: `getUserId(req)` helper in routes.ts extracts userId from either `req.user.claims.sub` (Replit) or `req.user.userId` (Telegram/Yandex/VK).
 - **isAuthenticated middleware**: Any user with `authProvider` set (telegram/yandex/vk) bypasses OIDC token refresh checks.
