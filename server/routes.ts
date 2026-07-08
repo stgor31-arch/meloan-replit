@@ -1,6 +1,5 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import crypto from "crypto";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertLenderProfileSchema, pushSubscriptions } from "@shared/schema";
@@ -48,18 +47,6 @@ const pushSubscribeSchema = z.object({
   phone: z.string().optional(),
 });
 
-const mergeAccountsSchema = z.object({
-  canonicalUserId: z.string().min(1),
-  sourceUserIds: z.array(z.string().min(1)).min(1),
-});
-
-function safeTokenEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
 const telegramAuthSchema = z.object({
   id: z.number(),
   first_name: z.string().optional(),
@@ -88,28 +75,6 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   registerOAuthProviderRoutes(app);
-
-  // Temporary, token-guarded one-off endpoint to merge duplicate user accounts.
-  // Disabled entirely unless ADMIN_MERGE_TOKEN is set. Remove after use.
-  app.post("/api/admin/merge-accounts", async (req: any, res) => {
-    const token = process.env.ADMIN_MERGE_TOKEN;
-    if (!token) {
-      return res.status(404).json({ message: "Not found" });
-    }
-    const provided = req.header("x-admin-token");
-    if (!provided || !safeTokenEquals(String(provided), token)) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    try {
-      const { canonicalUserId, sourceUserIds } = mergeAccountsSchema.parse(req.body);
-      const result = await storage.mergeAccounts(canonicalUserId, sourceUserIds);
-      console.log("[merge-accounts] success:", JSON.stringify(result));
-      res.json(result);
-    } catch (e: any) {
-      console.error("[merge-accounts] error:", e);
-      res.status(400).json({ message: e.message });
-    }
-  });
 
   startPaymentReminders();
 

@@ -4,7 +4,6 @@ import {
   type ScheduleItem, type InsertScheduleItem,
   type PaymentRequest, type InsertPaymentRequest,
   lenderProfiles, loans, scheduleItems, paymentRequests,
-  users, pushSubscriptions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
@@ -41,17 +40,6 @@ export interface IStorage {
   ): Promise<{ loan: Loan & { schedule: ScheduleItem[] }; request: PaymentRequest } | undefined>;
 
   rateLoan(loanId: string, type: "borrower" | "lender", stars: number): Promise<Loan | undefined>;
-
-  mergeAccounts(canonicalUserId: string, sourceUserIds: string[]): Promise<MergeAccountsResult>;
-}
-
-export interface MergeAccountsResult {
-  canonicalUserId: string;
-  movedProfiles: number;
-  movedPushSubs: number;
-  deletedUsers: string[];
-  skippedSources: string[];
-  appliedIdentity: Record<string, unknown>;
 }
 
 function getRatePerPeriod(ratePercent: number, frequency: string): number {
@@ -518,87 +506,6 @@ export class DatabaseStorage implements IStorage {
     const field = type === "borrower" ? { borrowerRating: stars } : { lenderRating: stars };
     const [result] = await db.update(loans).set(field).where(eq(loans.id, loanId)).returning();
     return result;
-  }
-
-  async mergeAccounts(canonicalUserId: string, sourceUserIds: string[]): Promise<MergeAccountsResult> {
-    const sources = Array.from(new Set(sourceUserIds)).filter(
-      (id) => id && id !== canonicalUserId
-    );
-
-    return await db.transaction(async (tx) => {
-      const [canonical] = await tx.select().from(users).where(eq(users.id, canonicalUserId));
-      if (!canonical) {
-        throw new Error(`Canonical user ${canonicalUserId} not found`);
-      }
-
-      let movedProfiles = 0;
-      let movedPushSubs = 0;
-      const deletedUsers: string[] = [];
-      const skippedSources: string[] = [];
-      const identity: Record<string, string> = {};
-
-      for (const sourceId of sources) {
-        const [source] = await tx.select().from(users).where(eq(users.id, sourceId));
-        if (!source) {
-          // Already merged/removed — idempotent no-op.
-          skippedSources.push(sourceId);
-          continue;
-        }
-
-        const movedP = await tx
-          .update(lenderProfiles)
-          .set({ userId: canonicalUserId })
-          .where(eq(lenderProfiles.userId, sourceId))
-          .returning({ id: lenderProfiles.id });
-        movedProfiles += movedP.length;
-
-        const movedS = await tx
-          .update(pushSubscriptions)
-          .set({ userId: canonicalUserId })
-          .where(eq(pushSubscriptions.userId, sourceId))
-          .returning({ id: pushSubscriptions.id });
-        movedPushSubs += movedS.length;
-
-        // Capture identity to backfill canonical's empty fields (first non-empty wins).
-        if (!identity.telegramId && source.telegramId) identity.telegramId = source.telegramId;
-        if (!identity.yandexId && source.yandexId) identity.yandexId = source.yandexId;
-        if (!identity.vkId && source.vkId) identity.vkId = source.vkId;
-        if (!identity.email && source.email) identity.email = source.email;
-        if (!identity.firstName && source.firstName) identity.firstName = source.firstName;
-        if (!identity.lastName && source.lastName) identity.lastName = source.lastName;
-        if (!identity.profileImageUrl && source.profileImageUrl)
-          identity.profileImageUrl = source.profileImageUrl;
-
-        // Delete source row first so its unique provider IDs are freed before we
-        // (optionally) write them onto the canonical row below.
-        await tx.delete(users).where(eq(users.id, sourceId));
-        deletedUsers.push(sourceId);
-      }
-
-      const patch: Record<string, unknown> = {};
-      if (!canonical.telegramId && identity.telegramId) patch.telegramId = identity.telegramId;
-      if (!canonical.yandexId && identity.yandexId) patch.yandexId = identity.yandexId;
-      if (!canonical.vkId && identity.vkId) patch.vkId = identity.vkId;
-      if (!canonical.email && identity.email) patch.email = identity.email;
-      if (!canonical.firstName && identity.firstName) patch.firstName = identity.firstName;
-      if (!canonical.lastName && identity.lastName) patch.lastName = identity.lastName;
-      if (!canonical.profileImageUrl && identity.profileImageUrl)
-        patch.profileImageUrl = identity.profileImageUrl;
-
-      if (Object.keys(patch).length > 0) {
-        patch.updatedAt = new Date();
-        await tx.update(users).set(patch).where(eq(users.id, canonicalUserId));
-      }
-
-      return {
-        canonicalUserId,
-        movedProfiles,
-        movedPushSubs,
-        deletedUsers,
-        skippedSources,
-        appliedIdentity: patch,
-      };
-    });
   }
 }
 
