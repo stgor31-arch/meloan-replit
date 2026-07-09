@@ -19,6 +19,10 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET must be set.");
+  }
+
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
@@ -28,7 +32,7 @@ export function getSession() {
     tableName: "sessions",
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -65,6 +69,27 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  if (!process.env.REPL_ID) {
+    passport.serializeUser((user: Express.User, cb) => cb(null, user));
+    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+
+    app.get("/api/login", (_req, res) => {
+      res.redirect("/login?error=replit_auth_not_configured");
+    });
+
+    app.get("/api/callback", (_req, res) => {
+      res.redirect("/login?error=replit_auth_not_configured");
+    });
+
+    app.get("/api/logout", (req: any, res) => {
+      req.logout(() => {
+        res.redirect("/");
+      });
+    });
+
+    return;
+  }
 
   const config = await getOidcConfig();
 
