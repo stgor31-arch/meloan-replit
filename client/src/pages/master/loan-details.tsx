@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRoute } from "wouter";
-import { Calendar, Copy, Check, Bell, Gavel, Star, PartyPopper, Loader2, Send, MessageCircleMore, TrendingDown, Timer, X } from "lucide-react";
+import { Calendar, Copy, Check, Bell, Gavel, Star, PartyPopper, Loader2, Send, TrendingDown, Timer, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -173,10 +173,6 @@ export default function MasterLoanDetails() {
     window.open(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`, '_blank');
   };
 
-  const shareViaWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + inviteLink)}`, '_blank');
-  };
-
   const handleConfirmClick = (req: any) => {
     const scheduledAmount = nextScheduledItem?.amount ?? 0;
     const isOverpayment = req.amount > scheduledAmount && scheduledAmount > 0;
@@ -337,7 +333,7 @@ export default function MasterLoanDetails() {
                             Претензия
                         </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button variant="outline" className="rounded-2xl gap-2 border-blue-200 text-blue-600" onClick={shareViaTelegram} data-testid="button-share-telegram">
@@ -346,15 +342,6 @@ export default function MasterLoanDetails() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Отправить ссылку заемщику через Telegram</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="outline" className="rounded-2xl gap-2 border-green-200 text-green-600" onClick={shareViaWhatsApp} data-testid="button-share-whatsapp">
-                                <MessageCircleMore className="h-4 w-4" />
-                                WhatsApp
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Отправить ссылку заемщику через WhatsApp</TooltipContent>
                         </Tooltip>
                     </div>
                 </div>

@@ -9,7 +9,7 @@ import { useLocation, Link } from "wouter";
 import { Slider } from "@/components/ui/slider";
 import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Loader2, Send, MessageCircleMore, Copy, Check, X, Calculator } from "lucide-react";
+import { AlertCircle, Loader2, Send, Copy, Check, X, Calculator } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -207,10 +207,6 @@ export default function MasterCreateLoan() {
     window.open(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`, '_blank');
   };
 
-  const shareViaWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + inviteLink)}`, '_blank');
-  };
-
   if (!lenderProfile) {
     return (
         <MobileLayout title={t.new_loan} showBack>
@@ -267,10 +263,6 @@ export default function MasterCreateLoan() {
                   <Button variant="outline" className="rounded-xl gap-2 h-12 border-blue-200 text-blue-600" onClick={shareViaTelegram} data-testid="button-share-telegram-create">
                     <Send className="h-4 w-4" />
                     Отправить через Telegram
-                  </Button>
-                  <Button variant="outline" className="rounded-xl gap-2 h-12 border-green-200 text-green-600" onClick={shareViaWhatsApp} data-testid="button-share-whatsapp-create">
-                    <MessageCircleMore className="h-4 w-4" />
-                    Отправить через WhatsApp
                   </Button>
                 </div>
 
