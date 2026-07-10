@@ -21,7 +21,11 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
   };
 
   const handleContactDev = () => {
-    window.open("https://t.me/Meloan_support_bot", "_blank");
+    window.location.href = "tg://resolve?domain=Meloan_support_bot";
+
+    window.setTimeout(() => {
+      window.location.href = "https://t.me/Meloan_support_bot";
+    }, 700);
   };
 
   return (
