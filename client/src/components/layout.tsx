@@ -21,7 +21,7 @@ export function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
   };
 
   const handleContactDev = () => {
-    window.open("https://t.me/+JLYWXUiEOrBmMGNi", "_blank");
+    window.open("https://t.me/Meloan_support_bot", "_blank");
   };
 
   return (
